@@ -179,15 +179,20 @@ EXPOSE 8000
 
 # 8000 internally, always; the host maps it. The probe targets GET /api/config,
 # which src/server/security/instanceToken.ts exempts from the per-instance
-# token — so it answers 200 without a cookie. A probe against `/` would follow
-# the auth gate once module 18 is enabled and start reporting unhealthy on a
-# perfectly healthy server.
+# token — so it answers 200 without a cookie when sign-in is off. With sign-in
+# enabled (locked mode), src/server/auth/AuthGate.ts answers any unauthenticated
+# /api/* with 401 — also proof the server is alive and healthy. A probe against
+# `/` would serve the inline login page instead, which says nothing about the
+# API process.
+#
+# So "healthy" is any status below 500: 200 (open mode), 401 (locked mode).
+# Only a 5xx or a connection failure (server not listening) is unhealthy.
 #
 # start-period is 180s, not the default 0: FIRST boot hydrates /data by
 # downloading adb (~9 MB) before it listens. A shorter window marks the
 # container unhealthy during a successful first run.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=180s --retries=5 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:8000/api/config').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:8000/api/config').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
 
 # tini -g, not tini. The -g flag forwards SIGTERM to the whole process GROUP, so
 # it reaches node THROUGH start.sh's bash restart loop. Without it bash defers

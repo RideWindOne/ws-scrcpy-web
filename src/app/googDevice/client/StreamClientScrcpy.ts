@@ -7,6 +7,7 @@ import type { ParamsStreamScrcpy } from '../../../types/ParamsStreamScrcpy';
 import { Attribute } from '../../Attribute';
 import { AudioPlayer } from '../../audio/AudioPlayer';
 import { BaseClient } from '../../client/BaseClient';
+import { t } from '../../client/i18n';
 import { settingsService } from '../../client/SettingsService';
 import { CommandControlMessage } from '../../controlMessage/CommandControlMessage';
 import { ControlMessage } from '../../controlMessage/ControlMessage';
@@ -19,7 +20,11 @@ import {
 import { BasePlayer, type PlayerClass } from '../../player/BasePlayer';
 import type { WebCodecsPlayer } from '../../player/WebCodecsPlayer';
 import { probeDecodeSupport } from '../../player/webCodecsConfig';
-import { ScrcpyDemuxer, type SessionMetadata } from '../../ScrcpyDemuxer';
+// ScrcpyDemuxer is loaded lazily (dynamic import) so the main bundle never
+// contains BigInt literals — old WebViews that lack BigInt would otherwise
+// throw a SyntaxError while parsing the whole bundle and kill the device
+// list / add-device UI entirely. The type import compiles away to nothing.
+import type { ScrcpyDemuxer, SessionMetadata } from '../../ScrcpyDemuxer';
 import Size from '../../Size';
 import Util from '../../Util';
 import { html } from '../../ui/HtmlTag';
@@ -46,6 +51,17 @@ type StartParams = {
 };
 
 const TAG = '[StreamClientScrcpy]';
+
+// Lazy-load ScrcpyDemuxer (its BigInt literals must not reach the main
+// bundle — old WebViews would SyntaxError on the whole bundle). webpack
+// caches the dynamic-import module, so repeated calls are cheap.
+let demuxerModulePromise: Promise<typeof import('../../ScrcpyDemuxer')> | null = null;
+function loadDemuxer(): Promise<typeof import('../../ScrcpyDemuxer')> {
+    if (!demuxerModulePromise) {
+        demuxerModulePromise = import('../../ScrcpyDemuxer');
+    }
+    return demuxerModulePromise;
+}
 
 /**
  * Average encoded frame size below which there is almost certainly no picture.
@@ -241,6 +257,10 @@ export class StreamClientScrcpy
             videoSettings,
             deviceKind,
         });
+        // Notification monitor also runs on the stream page (badge + alerts).
+        void import('./NotificationCenter').then(({ NotificationCenter }) => {
+            NotificationCenter.getInstance().start(null);
+        });
     }
 
     public static override parseParameters(params: URLSearchParams): ParamsStreamScrcpy {
@@ -273,6 +293,10 @@ export class StreamClientScrcpy
                 audioEnabled: this.params.audioEnabled,
                 audioSource: this.params.audioSource,
                 encoderName: this.params.encoderName,
+                turnScreenOff: this.params.turnScreenOff,
+                lockOnDisconnect: this.params.lockOnDisconnect,
+                stayAwake: this.params.stayAwake,
+                cleanupOnDisconnect: this.params.cleanupOnDisconnect,
             },
             vs
                 ? {
@@ -495,7 +519,7 @@ export class StreamClientScrcpy
         this.lockedNotice = document.createElement('div');
         this.lockedNotice.className = 'stream-locked-notice';
         this.lockedNotice.hidden = true;
-        this.lockedNotice.textContent = 'device is locked — unlock it to see the screen';
+        this.lockedNotice.textContent = t('stream_device_locked');
         // The prompt goes first: ws-scrcpy.css moves the notice out of its way
         // with a `prompt ~ notice` sibling rule, which only looks forward.
         video.appendChild(this.clipboardPrompt.element);
@@ -557,7 +581,8 @@ export class StreamClientScrcpy
 
         // Connect via ScrcpyDemuxer
         const streamUrl = this.buildStreamUrl();
-        this.demuxer = new ScrcpyDemuxer(streamUrl);
+        const { ScrcpyDemuxer: DemuxerCls } = await loadDemuxer();
+        this.demuxer = new DemuxerCls(streamUrl);
         this.demuxer.onVideoFrame(this.onVideoFrame);
         this.demuxer.onAudioFrame(this.onAudioFrame);
         this.demuxer.onDeviceMessage(this.OnDeviceMessage);
@@ -649,7 +674,7 @@ export class StreamClientScrcpy
         }
     }
 
-    public refreshStream(): void {
+    public async refreshStream(): Promise<void> {
         console.log(TAG, 'Refreshing stream (reconnect for fresh keyframe)');
         this.frameSizes.clear();
         this.frameSampleCount = 0;
@@ -676,7 +701,8 @@ export class StreamClientScrcpy
 
         // Reconnect
         const streamUrl = this.buildStreamUrl();
-        this.demuxer = new ScrcpyDemuxer(streamUrl);
+        const { ScrcpyDemuxer: DemuxerCls } = await loadDemuxer();
+        this.demuxer = new DemuxerCls(streamUrl);
         this.demuxer.onVideoFrame(this.onVideoFrame);
         this.demuxer.onAudioFrame(this.onAudioFrame);
         this.demuxer.onDeviceMessage(this.OnDeviceMessage);
@@ -792,7 +818,7 @@ export class StreamClientScrcpy
                     id="${configureButtonId}"
                     class="active action-button"
                 >
-                    config stream
+                    ${t('config_stream')}
                 </button>
             </div>`;
             const a = e.content.getElementById(configureButtonId);

@@ -55,7 +55,7 @@ export class CommandControlMessage extends ControlMessage {
         return event;
     }
 
-    public static createSetClipboardCommand(text: string, paste = false, sequence = 0n): CommandControlMessage {
+    public static createSetClipboardCommand(text: string, paste = false, sequence: bigint = BigInt(0)): CommandControlMessage {
         const event = new CommandControlMessage(ControlMessage.TYPE_SET_CLIPBOARD);
         const textBytes: Uint8Array | null = text ? new TextEncoder().encode(text) : null;
         const textLength = textBytes ? textBytes.length : 0;

@@ -140,6 +140,64 @@ describe('originGuard.setAllowedHosts (configurable escape-hatch)', () => {
     });
 });
 
+describe('originGuard wildcard allowedHosts (fork feature)', () => {
+    afterEach(() => {
+        setAllowedHosts([]);
+    });
+
+    it('matches any subdomain of a *.example.com entry', () => {
+        setAllowedHosts(['*.example.com']);
+        expect(isHostAllowed('ws.example.com')).toBe(true);
+        expect(isHostAllowed('a.b.example.com')).toBe(true);
+        expect(isHostAllowed('ws.example.com:8443')).toBe(true);
+    });
+
+    it('does not match the bare apex domain', () => {
+        setAllowedHosts(['*.example.com']);
+        expect(isHostAllowed('example.com')).toBe(false);
+    });
+
+    it('requires a label boundary (no prefix matching)', () => {
+        setAllowedHosts(['*.example.com']);
+        expect(isHostAllowed('evilexample.com')).toBe(false);
+        expect(isHostAllowed('example.com.evil.org')).toBe(false);
+    });
+
+    it('is case-insensitive and trims wildcard entries', () => {
+        setAllowedHosts(['  *.Example.COM  ']);
+        expect(isHostAllowed('WS.Example.com')).toBe(true);
+    });
+
+    it('still rejects domains outside any wildcard', () => {
+        setAllowedHosts(['*.example.com']);
+        expect(isHostAllowed('evil.com')).toBe(false);
+    });
+
+    it('still enforces the Origin check on wildcard-matched hosts', () => {
+        setAllowedHosts(['*.example.com']);
+        expect(isRequestAllowed('https://ws.example.com', 'ws.example.com').allowed).toBe(true);
+        expect(isRequestAllowed('http://evil.com', 'ws.example.com').allowed).toBe(false);
+    });
+
+    it('lets an exact entry win alongside a wildcard', () => {
+        setAllowedHosts(['*.example.com', 'app.example.org']);
+        expect(isHostAllowed('app.example.org')).toBe(true);
+        expect(isHostAllowed('x.example.org')).toBe(false);
+        expect(isHostAllowed('x.example.com')).toBe(true);
+    });
+
+    it('supports a bare * match-all opt-out', () => {
+        setAllowedHosts(['*']);
+        expect(isHostAllowed('anything.example.net')).toBe(true);
+        expect(isHostAllowed('random.invalid-tld')).toBe(true);
+    });
+
+    it('treats stray asterisks inside entries as literal (never matches)', () => {
+        setAllowedHosts(['foo*bar.example.com']);
+        expect(isHostAllowed('foo-bar.example.com')).toBe(false);
+    });
+});
+
 describe('originGuard.requiresOriginCheck', () => {
     it('gates API GET requests (DNS-rebinding data exfiltration)', () => {
         expect(requiresOriginCheck('GET', '/api/devices')).toBe(true);

@@ -16,6 +16,7 @@ const pkgVersion: string = rootPkg.version;
 
 const versionDefinePlugin = new webpack.DefinePlugin({
     __WSSCRCPY_VERSION__: JSON.stringify(pkgVersion),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString().replace('T', ' ').replace('.000Z', ' UTC')),
 });
 
 // Inline plugin: generates a minimal package.json in dist/
@@ -130,6 +131,7 @@ const front: webpack.Configuration = {
     externals: ['fs'],
     plugins: [
         new MiniCssExtractPlugin({ filename: 'bundle.css' }),
+        versionDefinePlugin,
         new CopyFilePlugin(
             path.resolve(PROJECT_ROOT, 'public/index.html'),
             path.resolve(CLIENT_DIST_PATH, 'index.html'),

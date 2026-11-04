@@ -1,4 +1,5 @@
 import { Modal } from '../ui/Modal';
+import { t } from './i18n';
 
 export interface LargeSubnetWarningOptions {
     totalHosts: number;
@@ -40,7 +41,7 @@ export class LargeSubnetWarningModal extends Modal {
         container.appendChild(list);
 
         const advice = document.createElement('p');
-        advice.textContent = 'To narrow the scan, cancel and edit subnets. Otherwise continue.';
+        advice.textContent = t('large_subnet_advice');
         advice.style.cssText = 'margin-top: 12px; color: var(--text-color-light); font-size: 13px;';
         container.appendChild(advice);
     }
@@ -48,10 +49,10 @@ export class LargeSubnetWarningModal extends Modal {
     protected override buildFooter(): HTMLElement | null {
         const footer = document.createElement('div');
         const cancel = document.createElement('button');
-        cancel.textContent = 'cancel';
+        cancel.textContent = t('cancel_btn');
         cancel.addEventListener('click', () => this.close());
         const cont = document.createElement('button');
-        cont.textContent = 'continue scan';
+        cont.textContent = t('large_subnet_continue');
         cont.addEventListener('click', () => {
             // Close first: onContinue closes the parent, which closes its open
             // children, so closing after it would close this dialog twice.

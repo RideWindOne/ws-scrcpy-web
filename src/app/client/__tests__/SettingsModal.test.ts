@@ -925,12 +925,12 @@ describe('the running version in the dialog footer', () => {
         expect(version!.textContent).not.toContain('undefined');
     });
 
-    it('still names the version in a container, where the Updates tab is replaced by a note', async () => {
+    it('still names the version in a container, where the Updates tab becomes the in-app updater', async () => {
         stubConfig({ ...base, docker: true, appVersion: '0.5.1' });
         new SettingsModal();
         await flush();
 
-        expect(document.querySelector('[data-docker-note="updates"]')).not.toBeNull();
+        expect(document.querySelector('[data-settings-tab="container-updates"]')).not.toBeNull();
         const { version } = footerParts();
         expect(version!.hidden).toBe(false);
         expect(version!.textContent).toBe('v0.5.1');

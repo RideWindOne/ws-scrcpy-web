@@ -1,4 +1,5 @@
 import { Modal } from '../ui/Modal';
+import { t } from './i18n';
 
 /**
  * How the warning was answered: the explicit accept, the recommended "set up
@@ -37,7 +38,7 @@ export class RemoteAdminWarningModal extends Modal {
     }
 
     private constructor(resolve: (value: RemoteAdminChoice) => void) {
-        super({ title: 'Allow remote admin without sign-in?' });
+        super({ title: t('remote_admin_allow_title') });
         this.resolveFn = resolve;
         this.dialog.classList.add('remote-admin-warning-modal');
         // The base constructor calls buildBody() before the subclass fields
@@ -61,16 +62,13 @@ export class RemoteAdminWarningModal extends Modal {
     private fillBody(container: HTMLElement): void {
         const title = document.createElement('strong');
         title.className = 'remote-admin-warning__title';
-        title.textContent = '⚠ This makes anyone on your network an administrator.';
+        title.textContent = t('remote_admin_allow_warn');
 
         const body = document.createElement('p');
-        body.textContent =
-            'With no sign-in configured, allowing remote admin means any device that can reach this ' +
-            'server can create and delete users, change configuration, and shut the server down. ' +
-            'Nothing is protected by a password.';
+        body.textContent = t('remote_admin_allow_body');
 
         const scope = document.createElement('p');
-        scope.textContent = 'Only do this on a network you fully control.';
+        scope.textContent = t('remote_admin_warn_scope');
 
         container.append(title, body, scope);
     }
@@ -84,14 +82,14 @@ export class RemoteAdminWarningModal extends Modal {
         const signIn = document.createElement('button');
         signIn.type = 'button';
         signIn.className = 'modal-button remote-admin-warning__recommended';
-        signIn.textContent = 'Set up sign-in instead';
+        signIn.textContent = t('remote_admin_setup_signin');
         signIn.addEventListener('click', () => this.resolveAndClose('sign-in'));
         footer.appendChild(signIn);
 
         const accept = document.createElement('button');
         accept.type = 'button';
         accept.className = 'modal-button remote-admin-warning__accept';
-        accept.textContent = 'I understand — allow remote admin';
+        accept.textContent = t('remote_admin_accept');
         accept.addEventListener('click', () => this.resolveAndClose('accept'));
         footer.appendChild(accept);
 

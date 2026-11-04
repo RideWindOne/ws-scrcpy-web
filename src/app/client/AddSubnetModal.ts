@@ -1,6 +1,7 @@
 import { parseSubnetInput } from '../../common/SubnetParser';
 import { Modal } from '../ui/Modal';
 import { SUBNETS_HELP_HREF, themeHelpLink } from './helpLink';
+import { t } from './i18n';
 
 export type AddSubnetMode = 'add' | 'edit';
 
@@ -19,7 +20,7 @@ export class AddSubnetModal extends Modal {
     private readonly initialValue: string;
 
     constructor(options: AddSubnetModalOptions) {
-        super({ title: options.mode === 'edit' ? 'Edit Subnet' : 'Add Subnet to Scan' });
+        super({ title: options.mode === 'edit' ? t('edit_subnet') : t('add_subnet_to_scan') });
         this.submitCallback = options.onSubmit;
         this.mode = options.mode ?? 'add';
         this.initialValue = options.initialValue ?? '';
@@ -33,8 +34,7 @@ export class AddSubnetModal extends Modal {
 
     private fillBody(container: HTMLElement): void {
         const help = document.createElement('p');
-        help.textContent =
-            'Accepted formats: CIDR (192.168.2.0/24), single IP (192.168.2.5), or range (192.168.2.10-50).';
+        help.textContent = t('accepted_formats');
         help.style.cssText = 'margin: 0 0 12px; color: var(--text-color-light); font-size: 13px;';
         container.appendChild(help);
 
@@ -68,10 +68,10 @@ export class AddSubnetModal extends Modal {
 
     private fillFooter(footer: HTMLElement): void {
         const cancel = document.createElement('button');
-        cancel.textContent = 'cancel';
+        cancel.textContent = t('cancel');
         cancel.addEventListener('click', () => this.close());
         this.addBtn = document.createElement('button');
-        this.addBtn.textContent = this.mode === 'edit' ? 'save' : 'add';
+        this.addBtn.textContent = this.mode === 'edit' ? t('save_btn') : t('add');
         this.addBtn.disabled = true;
         this.addBtn.addEventListener('click', () => this.submit());
         footer.appendChild(cancel);
@@ -124,13 +124,13 @@ export class AddSubnetModal extends Modal {
         const before = message.slice(0, idx);
         const after = message.slice(idx + CHEAT_SHEET_NOTE.length);
         if (before) this.status.appendChild(document.createTextNode(before));
-        this.status.appendChild(document.createTextNode('See the '));
+        this.status.appendChild(document.createTextNode(t('addsubnet_see')));
         const link = document.createElement('a');
         // The cheat sheet opens in the app's current theme (helpLink.ts).
         themeHelpLink(link, SUBNETS_HELP_HREF);
         link.target = '_blank';
         link.rel = 'noopener';
-        link.textContent = 'subnet cheat sheet';
+        link.textContent = t('addsubnet_cheatsheet');
         link.style.cssText = 'color: #58a6ff; text-decoration: underline;';
         this.status.appendChild(link);
         this.status.appendChild(document.createTextNode(' for help.'));

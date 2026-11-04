@@ -3,6 +3,7 @@ import type GoogDeviceDescriptor from '../../../types/GoogDeviceDescriptor';
 import type { ParamsDeviceTracker } from '../../../types/ParamsDeviceTracker';
 import { BaseDeviceTracker } from '../../client/BaseDeviceTracker';
 import type { Tool } from '../../client/Tool';
+import { t } from '../../client/i18n';
 
 /**
  * The device card's "shell" entry. DeviceTracker intercepts the anchor's click
@@ -31,7 +32,7 @@ export const ShellClient: Tool = {
                     action: ACTION.SHELL,
                     udid: descriptor.udid,
                 },
-                'shell',
+                t('shell'),
                 params,
             ),
         );

@@ -4,6 +4,7 @@ import { Multiplexer } from '../../../packages/multiplexer/Multiplexer';
 import { BinaryWriter } from '../../BinaryWriter';
 import { ManagerClient } from '../../client/ManagerClient';
 import type { SettingsService } from '../../client/SettingsService';
+import { t } from '../../client/i18n';
 import { basename, resolve } from '../../pathUtils';
 import { Modal } from '../../ui/Modal';
 import { debugLog } from '../../util/debugLog';
@@ -119,7 +120,7 @@ export class ListFilesModal extends Modal implements DragAndPushListener {
         const sizeBtn = document.createElement('button');
         sizeBtn.className = 'modal-close';
         sizeBtn.textContent = '\u229e'; // ⊞
-        sizeBtn.title = 'icon size preference';
+        sizeBtn.title = t('files_icon_size_pref');
         sizeBtn.addEventListener('click', () => this.showSizePicker());
         this.addHeaderButton(sizeBtn);
 
@@ -271,7 +272,7 @@ export class ListFilesModal extends Modal implements DragAndPushListener {
         picker.className = 'list-files-size-picker';
 
         const heading = document.createElement('h3');
-        heading.textContent = 'icon size';
+        heading.textContent = t('files_icon_size');
         picker.appendChild(heading);
 
         const options = document.createElement('div');
@@ -425,7 +426,7 @@ export class ListFilesModal extends Modal implements DragAndPushListener {
         // Drop zone overlay (hidden by default)
         this.dropZone = document.createElement('div');
         this.dropZone.className = 'list-files-dropzone';
-        this.dropZone.textContent = 'drop files here';
+        this.dropZone.textContent = t('files_drop_here');
         this.dropZone.style.display = 'none';
         this.bodyEl.appendChild(this.dropZone);
 
@@ -1298,7 +1299,7 @@ export class ListFilesModal extends Modal implements DragAndPushListener {
             console.error(TAG, 'delete request failed:', err);
             const infoEl2 = this.getFooterInfo();
             if (infoEl2) {
-                infoEl2.textContent = 'delete request failed';
+                infoEl2.textContent = t('files_delete_failed');
                 setTimeout(() => this.updateFooterInfo(), 10000);
             }
         }

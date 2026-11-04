@@ -11,4 +11,9 @@ export interface ParamsStreamScrcpy extends ParamsStream {
     audioEnabled?: boolean | undefined;
     audioSource?: 'playback' | 'output' | 'mic' | undefined;
     encoderName?: string | undefined;
+    turnScreenOff?: boolean | undefined;
+    lockOnDisconnect?: boolean | undefined;
+    stayAwake?: boolean | undefined;
+    wakeLock?: boolean | undefined;
+    cleanupOnDisconnect?: boolean | undefined;
 }

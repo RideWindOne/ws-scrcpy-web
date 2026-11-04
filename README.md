@@ -1,4 +1,22 @@
-# ws-scrcpy-web
+# ws-scrcpy-web arm64
+
+> ## 📱 二次开发版本
+>
+> **基于 [bilbospocketses/ws-scrcpy-web](https://github.com/bilbospocketses/ws-scrcpy-web) 优化移动端体验**
+>
+> - 适配移动端浏览器竖屏显示
+> - 工具栏新增全屏按钮，一键全屏查看设备画面
+> - 原生 arm64 架构，适配极空间、绿联等 ARM NAS
+>
+> **适用场景：极空间 T2S + Redroid 云手机方案**
+> 1. 在极空间 T2S 上安装 Redroid（Android Docker 容器）
+> 2. 开启 ADB 认证，配置好无线调试
+> 3. 部署本镜像，通过极空间 Docker 自带的端口映射/反代远程访问
+> 4. 随时随地通过手机浏览器访问你的云手机
+>
+> Docker 镜像：`ridewindone/ws-scrcpy-web:arm64`
+
+---
 
 > ## ⚠️ The Docker image is moving
 >

@@ -23,9 +23,17 @@ export interface ScrcpyOptions {
      * keyframe interval, so it travels here.
      */
     videoCodecOptions?: string;
+    /** Turn device screen off after connection (client-side implemented via ADB) */
+    turnScreenOff?: boolean;
+    /** Lock device on disconnect (client-side implemented via ADB) */
+    lockOnDisconnect?: boolean;
+    /** Keep device awake during session (scrcpy-server supports stay_awake param) */
+    stayAwake?: boolean;
+    /** Power off screen on close connection (scrcpy-server supports power_off_on_close param) */
+    powerOffOnClose?: boolean;
 }
 
-const DEFAULTS: Omit<Required<ScrcpyOptions>, 'scid' | 'videoEncoder' | 'videoCodecOptions'> = {
+const DEFAULTS: Omit<Required<ScrcpyOptions>, 'scid' | 'videoEncoder' | 'videoCodecOptions' | 'turnScreenOff' | 'lockOnDisconnect'> = {
     videoCodec: 'h264',
     audioCodec: 'opus',
     audioSource: 'output',
@@ -41,6 +49,8 @@ const DEFAULTS: Omit<Required<ScrcpyOptions>, 'scid' | 'videoEncoder' | 'videoCo
     sendFrameMeta: true,
     tunnelForward: false,
     cleanup: true,
+    stayAwake: false,
+    powerOffOnClose: false,
 };
 
 function toSnakeCase(key: string): string {

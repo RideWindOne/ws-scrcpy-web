@@ -3,6 +3,7 @@ import { onAdminAccessLost } from './adminAccess';
 import { reasonToUserMessage } from './serviceFailureMessage';
 import { runUpgradingHandoff } from './UpgradingOverlay';
 import { classifyFailedApply, LostApplyWatch } from './updateApplyOutcome';
+import { t } from './i18n';
 
 /**
  * UpdateButton — small top-right indicator that polls /api/updates/status and
@@ -96,7 +97,7 @@ export function createUpdateButton(): HTMLElement {
         container.replaceChildren();
         setState('state-checking');
         container.style.display = 'flex';
-        container.title = 'checking for updates…';
+        container.title = t('update_checking');
 
         const spinner = document.createElement('span');
         spinner.className = 'update-button-spinner';
@@ -113,7 +114,7 @@ export function createUpdateButton(): HTMLElement {
         container.replaceChildren();
         setState('state-downloading');
         container.style.display = 'flex';
-        container.title = 'downloading update';
+        container.title = t('update_downloading');
 
         const label = document.createElement('span');
         label.className = 'update-button-label';
@@ -127,11 +128,11 @@ export function createUpdateButton(): HTMLElement {
         container.replaceChildren();
         setState('state-downloading');
         container.style.display = 'flex';
-        container.title = 'installing update';
+        container.title = t('update_installing');
 
         const label = document.createElement('span');
         label.className = 'update-button-label';
-        label.textContent = 'installing update…';
+        label.textContent = t('update_installing');
         container.appendChild(label);
     }
 
@@ -185,7 +186,7 @@ export function createUpdateButton(): HTMLElement {
         const retryBtn = document.createElement('button');
         retryBtn.type = 'button';
         retryBtn.className = 'update-button-retry';
-        retryBtn.title = 'check for updates again';
+        retryBtn.title = t('update_check_again');
         retryBtn.textContent = 'retry';
         retryBtn.addEventListener('click', () => {
             void onRetryClick(retryBtn);
@@ -197,7 +198,7 @@ export function createUpdateButton(): HTMLElement {
         container.replaceChildren();
         setState('state-ready');
         container.style.display = 'flex';
-        container.title = 'server is restarting to apply the update';
+        container.title = t('update_restarting');
 
         const label = document.createElement('span');
         label.className = 'update-button-label';

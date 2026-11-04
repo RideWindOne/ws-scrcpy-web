@@ -171,6 +171,10 @@ body.list #device_list_menu {
     display: none;
 }
 
+/* Device-card action buttons share one skeleton (border + transparent fill +
+ * same sizing), differing only in semantic color: disconnect/sleep carry their
+ * state color. Lock-screen passwords live in the stream toolbar's unlock
+ * dialog, not here. */
 #devices .device-list .disconnect-btn {
     border: 0.5px solid var(--danger-color);
     border-radius: 6px;
@@ -186,6 +190,17 @@ body.list #device_list_menu {
 
 #devices .device-list .disconnect-btn:hover:not(:disabled) {
     background: var(--danger-hover-bg);
+}
+
+/* All four action buttons fill their grid cell so the two columns line up
+ * exactly (buttons previously had differing min-widths — 95 vs 70px — which
+ * made the right column's text start at different offsets). Text is left
+ * aligned for a consistent scan line across the card. */
+#devices .device-list .device-actions > .action-cell > button {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    text-align: left;
 }
 
 #devices .device-list .disconnect-btn:disabled {

@@ -4,6 +4,8 @@ import type { PairingState, PairingStatus } from '../../common/PairingStatus';
 import { SCAN_WS_PATH, type ScanServerMessage } from '../../common/ScanMessage';
 import { ScanNetworkModal } from './ScanNetworkModal';
 import { ScanProgressChip } from './ScanProgressChip';
+import { t } from './i18n';
+import { dbg } from './DebugOverlay';
 
 interface ConnectResult {
     success: boolean;
@@ -184,10 +186,10 @@ export function renderPairingSection(deps: PairingSectionDeps): HTMLElement {
     // Static markup — nothing here is interpolated from input.
     section.innerHTML = `
         <div class="discovery-pairing-header">
-            <span class="discovery-pairing-title">Pair a new device</span>
+            <span class="discovery-pairing-title">${t('pair_new_device')}</span>
             <div class="discovery-pairing-modes">
-                <button class="dep-btn" data-pair-mode="qr" aria-pressed="false">scan QR code</button>
-                <button class="dep-btn" data-pair-mode="code" aria-pressed="false">pairing code</button>
+                <button class="dep-btn" data-pair-mode="qr" aria-pressed="false">${t('scan_qr_code')}</button>
+                <button class="dep-btn" data-pair-mode="code" aria-pressed="false">${t('pairing_code')}</button>
                 <button class="dep-btn discovery-pairing-cancel" data-pair-cancel>cancel</button>
             </div>
         </div>
@@ -670,7 +672,7 @@ export function renderPairingSection(deps: PairingSectionDeps): HTMLElement {
             });
             const result = (await res.json()) as { success?: unknown; message?: unknown };
             if (result.success === true) {
-                setStatus(`Connected to ${address}.`, 'success');
+                setStatus(`${t('connected_to')} ${address}.`, 'success');
                 hideAction();
                 deps.onPaired?.(status);
             } else {
@@ -759,24 +761,24 @@ export class NetworkDiscoveryPanel {
         this.container.className = 'home-section';
         this.container.innerHTML = `
             <div class="discovery-header">
-                <h2>Available Network Devices</h2>
+                <h2>${t('available_devices')}</h2>
                 <div class="discovery-header-actions">
-                    <button class="dep-btn discovery-quick-scan-btn" title="mDNS-only — finds modern Android devices with wireless debugging enabled">quick scan</button>
-                    <button class="dep-btn discovery-scan-btn">scan network</button>
-                    <button class="dep-btn discovery-manual-btn">manually add</button>
+                    <button class="dep-btn discovery-quick-scan-btn" title="mDNS-only — finds modern Android devices with wireless debugging enabled">${t('quick_scan')}</button>
+                    <button class="dep-btn discovery-scan-btn">${t('scan_network')}</button>
+                    <button class="dep-btn discovery-manual-btn">${t('manually_add')}</button>
                 </div>
             </div>
             <div class="discovery-manual-form" hidden>
                 <input type="text" class="discovery-manual-address" placeholder="192.168.86.50" />
                 <input type="text" class="discovery-manual-port" placeholder="5555" value="5555" />
-                <input type="text" class="discovery-manual-label" placeholder="optional name" />
-                <button class="dep-btn discovery-connect-btn discovery-manual-connect">connect</button>
+                <input type="text" class="discovery-manual-label" placeholder="${t('optional_name')}" />
+                <button class="dep-btn discovery-connect-btn discovery-manual-connect">${t('connect')}</button>
                 <button class="discovery-manual-close" aria-label="close" title="close">×</button>
                 <div class="discovery-manual-result" hidden></div>
             </div>
             <div class="discovery-pairing-mount"></div>
             <div class="discovery-results"></div>
-            <div class="empty-state-card discovery-info">Click quick scan for modern Android devices on your network, or scan network to probe a full subnet. Make sure wireless debugging is enabled on the devices you wish to connect with.</div>
+            <div class="empty-state-card discovery-info">${t('discovery_hint')}</div>
         `;
         this.infoBox = this.container.querySelector('.discovery-info')!;
         this.defaultInfoText = this.infoBox.textContent ?? '';
@@ -838,6 +840,7 @@ export class NetworkDiscoveryPanel {
     }
 
     private async scan(): Promise<void> {
+        dbg('发起“扫描网络”');
         // Fetch detected gateway subnet first
         let gateway: { cidr: string; hostCount: number } | null = null;
         // `{ container: true }` is the server saying it runs in a container and
@@ -850,8 +853,10 @@ export class NetworkDiscoveryPanel {
                 gateway = { cidr: detected.cidr, hostCount: detected.hostCount };
             }
             inContainer = detected?.container === true;
+            dbg('扫描子网探测返回：' + JSON.stringify({ gateway: detected?.cidr ?? null, inContainer }));
         } catch {
             gateway = null;
+            dbg('扫描子网探测失败（fetch 异常）', 'error');
         }
 
         new ScanNetworkModal({
@@ -867,6 +872,7 @@ export class NetworkDiscoveryPanel {
 
     private startScanWs(rawSubnets: string[], options: { mdnsOnly?: boolean } = {}): void {
         const mdnsOnly = options.mdnsOnly === true;
+        dbg('启动扫描 WebSocket，mdnsOnly=' + mdnsOnly + ', subnets=' + JSON.stringify(rawSubnets));
 
         // Clear the panel before a new scan (matches existing behavior)
         this.resultsContainer.innerHTML = '';
@@ -881,7 +887,7 @@ export class NetworkDiscoveryPanel {
         this.infoBox.textContent = '';
         this.infoBox.style.color = '';
         if (mdnsOnly) {
-            this.infoBox.textContent = 'scanning over mDNS…';
+            this.infoBox.textContent = t('scanning_mdns');
         } else {
             this.chip = new ScanProgressChip({
                 parent: this.infoBox,
@@ -900,6 +906,7 @@ export class NetworkDiscoveryPanel {
         this.scanWs = ws;
 
         ws.addEventListener('open', () => {
+            dbg('扫描 WebSocket 已打开');
             const startMsg: { type: 'scan.start'; subnets: string[]; mdnsOnly?: boolean } = {
                 type: 'scan.start',
                 subnets: rawSubnets,
@@ -917,12 +924,14 @@ export class NetworkDiscoveryPanel {
         });
         ws.addEventListener('close', () => {
             this.scanWs = undefined;
+            dbg('扫描 WebSocket 已关闭' + (terminalReceived ? '' : '（未收到完成事件）'), terminalReceived ? 'info' : 'warn');
             if (!terminalReceived) {
                 this.setInfoText('Scan connection lost before completion.', true);
                 this.chip?.dismiss();
             }
         });
         ws.addEventListener('error', () => {
+            dbg('扫描 WebSocket 连接失败', 'error');
             this.setInfoText('Scan connection failed.', true);
             this.chip?.dismiss();
         });
@@ -945,7 +954,7 @@ export class NetworkDiscoveryPanel {
             case 'scan.complete':
                 if (mdnsOnly) {
                     if (msg.found === 0) {
-                        this.setInfoText('No devices advertising over mDNS. Try scan network for a full subnet probe.');
+                        this.setInfoText(t('no_mdns_devices'));
                     } else {
                         this.restoreInfoText();
                     }
@@ -992,8 +1001,8 @@ export class NetworkDiscoveryPanel {
             </div>
             <div class="discovery-card-actions">
                 <input type="text" class="discovery-name-input" placeholder="Name this device..." value="${escapeHtml(hit.label || '')}" />
-                <button class="dep-btn discovery-connect-btn" data-address="${escapeHtml(hit.address)}" data-serial="${escapeHtml(hit.serial)}">connect</button>
-                <button class="dep-btn discovery-dismiss-btn" aria-label="dismiss" title="dismiss">close</button>
+                <button class="dep-btn discovery-connect-btn" data-address="${escapeHtml(hit.address)}" data-serial="${escapeHtml(hit.serial)}">${t('connect')}</button>
+                <button class="dep-btn discovery-dismiss-btn" aria-label="dismiss" title="dismiss">${t('close')}</button>
             </div>
             <div class="discovery-card-result" hidden></div>
         `;
@@ -1068,6 +1077,7 @@ export class NetworkDiscoveryPanel {
         const portInput = this.container.querySelector('.discovery-manual-port') as HTMLInputElement;
         const labelInput = this.container.querySelector('.discovery-manual-label') as HTMLInputElement;
         const btn = this.container.querySelector('.discovery-manual-connect') as HTMLButtonElement;
+        dbg('手动添加 connect 被点击');
 
         const ip = addressInput.value.trim();
         const typedPort = portInput.value.trim();
@@ -1096,7 +1106,7 @@ export class NetworkDiscoveryPanel {
 
         const address = `${ip}:${port}`;
         btn.disabled = true;
-        btn.textContent = 'Connecting...';
+        btn.textContent = t('connecting') + '...';
         const resultEl = this.container.querySelector('.discovery-manual-result') as HTMLElement;
         resultEl.setAttribute('hidden', '');
         resultEl.textContent = '';
@@ -1106,7 +1116,7 @@ export class NetworkDiscoveryPanel {
         using _restoreBtn = {
             [Symbol.dispose](): void {
                 btn.disabled = false;
-                btn.textContent = 'connect';
+                btn.textContent = t('connect');
             },
         };
 
@@ -1116,14 +1126,17 @@ export class NetworkDiscoveryPanel {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ address, label: label || undefined }),
             });
+            dbg('手动添加响应：HTTP ' + res.status);
             const result: ConnectResult = await res.json();
+            dbg('手动添加结果：' + (result.success ? '成功 ' : '失败 ') + (result.message || ''), result.success ? 'info' : 'warn');
             if (result.success) {
-                this.showManualResult(`Connected to ${address}`, 'success');
+                this.showManualResult(`${t('connected_to')} ${address}`, 'success');
                 setTimeout(() => this.toggleManualForm(false), 2000);
             } else {
                 this.showManualResult(result.message || `Failed to connect to ${address}`, 'error');
             }
         } catch (err: any) {
+            dbg('手动添加请求异常：' + (err?.message || String(err)), 'error');
             this.showManualResult(err?.message || 'Request failed', 'error');
         }
     }
@@ -1145,14 +1158,18 @@ export class NetworkDiscoveryPanel {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ address, serial, label: label || undefined }),
             });
+            dbg('扫描卡片连接响应：HTTP ' + res.status + ' (' + address + ')');
             const result: ConnectResult = await res.json();
             if (result.success) {
+                dbg('扫描卡片连接成功：' + address);
                 setTimeout(() => card.remove(), 1500);
             } else {
+                dbg('扫描卡片连接失败：' + (result.message || ''), 'warn');
                 btn.disabled = false;
                 this.showCardResult(resultEl, result.message || `Failed to connect to ${address}`, 'error');
             }
         } catch (err: any) {
+            dbg('扫描卡片连接异常：' + (err?.message || String(err)), 'error');
             btn.disabled = false;
             this.showCardResult(resultEl, err?.message || 'Request failed', 'error');
         }

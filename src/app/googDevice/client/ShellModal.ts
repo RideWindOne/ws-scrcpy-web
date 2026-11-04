@@ -6,6 +6,7 @@ import { ChannelCode } from '../../../common/ChannelCode';
 import { Multiplexer } from '../../../packages/multiplexer/Multiplexer';
 import type { MessageXtermClient } from '../../../types/MessageXtermClient';
 import { ManagerClient } from '../../client/ManagerClient';
+import { t } from '../../client/i18n';
 import { ShellCloseConfirmModal } from '../../client/ShellCloseConfirmModal';
 import { Modal } from '../../ui/Modal';
 import { buildMultiplexUrl } from './multiplexConnection';
@@ -30,6 +31,11 @@ export class ShellModal extends Modal {
     private ws?: Multiplexer | undefined;
     private resizeObserver?: ResizeObserver | undefined;
     private shellStarted = false;
+    /** Touch devices (phones/tablets): true — avoid autofocus so the on-screen
+     * keyboard does not pop up when the dialog opens. */
+    private readonly coarsePointer =
+        typeof window !== 'undefined' &&
+        window.matchMedia?.('(pointer: coarse)').matches === true;
     private readonly udid: string;
     private readonly params: {
         hostname?: string | undefined;
@@ -60,7 +66,7 @@ export class ShellModal extends Modal {
         // Insert resize warning between header and body
         const warning = document.createElement('div');
         warning.className = 'shell-warning';
-        warning.textContent = 'resizing the browser window after starting a session may cause display issues';
+        warning.textContent = t('shell_resize_warning');
         this.frameEl.insertBefore(warning, this.bodyEl);
 
         // Get the terminal container created by buildBody
@@ -233,7 +239,13 @@ export class ShellModal extends Modal {
             this.fitAddon.fit();
             if (!this.shellStarted) {
                 this.shellStarted = true;
-                this.term?.focus();
+                // Do NOT focus the terminal on touch devices: focusing xterm's
+                // hidden textarea pops the on-screen keyboard the moment the
+                // dialog opens. Desktop keeps the old autofocus; on phones the
+                // user taps the terminal and the keyboard comes up then.
+                if (!this.coarsePointer) {
+                    this.term?.focus();
+                }
                 this.startShell();
             } else {
                 this.sendResize();

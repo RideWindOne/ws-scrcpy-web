@@ -8,6 +8,8 @@ import type { ToolBoxElement } from '../../toolbox/ToolBoxElement';
 import SvgImage from '../../ui/SvgImage';
 import KeyEvent from '../android/KeyEvent';
 import type { StreamClientScrcpy } from '../client/StreamClientScrcpy';
+import { t } from '../../client/i18n';
+import { UnlockDialog } from './UnlockDialog';
 
 const BUTTONS = [
     {
@@ -95,6 +97,21 @@ export class GoogToolBox extends ToolBox {
         });
         elements.push(keyboard);
 
+        // Enter lock-screen password: works even when the lock screen is a
+        // black surface on the stream (unrooted device), because it injects
+        // over the scrcpy control channel and locates the pattern grid via the
+        // uiautomator dump — the Screen-Remote approach.
+        const unlock = new ToolBoxButton(t('unlock_title'), SvgImage.Icon.PATTERN_LOCK);
+        unlock.addEventListener('click', () => {
+            const screenInfo = player.getScreenInfo();
+            const videoSize = screenInfo?.videoSize;
+            if (!videoSize) {
+                return;
+            }
+            new UnlockDialog(client, udid, videoSize, player.getParentElement());
+        });
+        elements.push(unlock);
+
         const uhid = new ToolBoxCheckbox(
             'UHID Input (keyboard + mouse)',
             SvgImage.Icon.KEYBOARD,
@@ -147,6 +164,22 @@ export class GoogToolBox extends ToolBox {
         });
         elements.push(refresh);
 
+        const disconnect = new ToolBoxButton('Disconnect', SvgImage.Icon.CANCEL);
+        disconnect.addEventListener('click', () => {
+            client.stopStream();
+        });
+        elements.push(disconnect);
+
+        let screenOn = true;
+        const powerScreen = new ToolBoxButton('Turn screen off', SvgImage.Icon.SCREEN_OFF);
+        powerScreen.addEventListener('click', () => {
+            screenOn = !screenOn;
+            const msg = CommandControlMessage.createSetScreenPowerModeCommand(screenOn);
+            client.sendMessage(msg);
+            powerScreen.getElement().title = screenOn ? 'Turn screen off' : 'Turn screen on';
+        });
+        elements.push(powerScreen);
+
         // GET: copy the device's selection to the host clipboard. This is what
         // upstream scrcpy sends for its MOD+c shortcut (input_manager.c,
         // SC_COPY_KEY_COPY; MOD is scrcpy's shortcut modifier, and a plain
@@ -183,6 +216,50 @@ export class GoogToolBox extends ToolBox {
             }
         });
         elements.push(clipSet);
+
+        const fullscreen = new ToolBoxButton('Toggle fullscreen', SvgImage.Icon.FULLSCREEN);
+        fullscreen.addEventListener('click', () => {
+            const canvas = player.getTouchableElement();
+            let target: HTMLElement | null = canvas;
+            while (target && !target.classList?.contains('device-view')) {
+                target = target.parentElement;
+            }
+            if (!target) {
+                target = document.body;
+            }
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+                setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+            } else {
+                target.requestFullscreen().then(() => {
+                    // 通过 UA 识别移动端：移动端手动撑满容器，桌面端保持“之前”的原生全屏行为
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(
+                        navigator.userAgent
+                    );
+                    document.body.dataset['uaMobile'] = isMobile ? 'true' : 'false';
+                    if (!isMobile) {
+                        setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+                        return;
+                    }
+                    // 移动端：手动调整 video 容器，确保视频完整显示
+                    const videoContainer = target.querySelector('.video') as HTMLElement;
+                    if (videoContainer) {
+                        videoContainer.style.width = '100%';
+                        videoContainer.style.height = '100%';
+                    }
+                    const videoLayer = target.querySelector('.video-layer') as HTMLElement;
+                    if (videoLayer) {
+                        videoLayer.style.maxWidth = '100%';
+                        videoLayer.style.maxHeight = '100%';
+                    }
+                    setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+                }).catch((err) => {
+                    console.error('[GoogToolBox] fullscreen request failed:', err);
+                });
+            }
+        });
+        // 放到最前面
+        elements.unshift(fullscreen);
 
         return new GoogToolBox(elements);
     }

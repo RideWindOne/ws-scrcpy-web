@@ -51,3 +51,8 @@ ws-scrcpy-web.log.1
 
 # Suite bundle round-trip scratch (scripts/build-suite-bundle.mjs --verify)
 /.suite-check/
+
+# Local build/packaging artifacts
+.DS_Store
+dist-*.tar.gz
+dist.tar.gz

@@ -4,6 +4,7 @@ import { onAdminAccessLost } from './adminAccess';
 import { ADMIN_UNREACHABLE_NOTE } from './adminGate';
 import type { TabAlert } from './settings/settingsLayout';
 import { isStaleTokenRefusal } from './staleToken';
+import { t } from './i18n';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -141,7 +142,7 @@ export class DependencyPanel {
             [Symbol.dispose]: (): void => {
                 this.busy = false;
                 btn.disabled = false;
-                btn.textContent = 'check for updates';
+                btn.textContent = t('dep_check_updates');
             },
         };
         try {

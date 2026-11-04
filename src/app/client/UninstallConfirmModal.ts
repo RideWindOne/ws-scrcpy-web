@@ -1,4 +1,5 @@
 import { Modal } from '../ui/Modal';
+import { t } from './i18n';
 
 export interface UninstallConfirmResult {
     confirmed: boolean;
@@ -63,7 +64,7 @@ export class UninstallConfirmModal extends Modal {
 
     private fillBody(container: HTMLElement): void {
         const description = document.createElement('p');
-        description.textContent = 'this removes the app, its dependencies, and any installed service.';
+        description.textContent = t('uninstall_confirm_desc');
         container.appendChild(description);
 
         const keepLabel = document.createElement('label');
@@ -75,7 +76,7 @@ export class UninstallConfirmModal extends Modal {
         this.keepCheckboxEl.checked = true; // default: keep data
 
         keepLabel.appendChild(this.keepCheckboxEl);
-        keepLabel.appendChild(document.createTextNode('keep my settings & logs'));
+        keepLabel.appendChild(document.createTextNode(t('uninstall_keep_settings')));
         container.appendChild(keepLabel);
 
         if (this.platform === 'win32') {

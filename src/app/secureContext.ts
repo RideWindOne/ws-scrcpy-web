@@ -49,8 +49,17 @@ export function loopbackEquivalent(location: LocationParts): string {
  * remedies stay: Local HTTPS is the quick fix for a home LAN, and a real
  * reverse-proxy deployment is still the right answer beyond one.
  */
-export function insecureOriginNotice(win: SecureContextWindow): string | null {
+export function insecureOriginNotice(win: SecureContextWindow, lang: string = 'en'): string | null {
     if (win.isSecureContext) return null;
+    if (lang === 'zh') {
+        return (
+            '当前地址不是安全源（secure origin），浏览器将不会提供视频解码器，无法开始投屏。' +
+            '最快的修复方式：在设置 → 本地 HTTPS 中开启本地 HTTPS；或在运行 ws-scrcpy-web 的机器上' +
+            '打开 ' +
+            loopbackEquivalent(win.location) +
+            '；超出家庭局域网的使用场景，请通过可信来源以 HTTPS 提供服务。'
+        );
+    }
     return (
         'this address is not a secure origin, so the browser will not expose the video decoder ' +
         'and no stream can start. turn on local https in settings → local https for the ' +

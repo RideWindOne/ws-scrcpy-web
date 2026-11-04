@@ -16,6 +16,21 @@ const OS_WINDOWS = os.platform() === 'win32';
 const USE_BINARY = !OS_WINDOWS;
 const EVENT_TYPE_SHELL = 'shell';
 
+/** Normalise a ws Data frame (string | Buffer | Buffer[] | ArrayBuffer) into
+ * what node-pty's write() accepts. */
+function toPtyData(data: WS.Data): string | Buffer {
+    if (typeof data === 'string') {
+        return data;
+    }
+    if (Array.isArray(data)) {
+        return Buffer.concat(data);
+    }
+    if (data instanceof ArrayBuffer) {
+        return Buffer.from(data);
+    }
+    return data;
+}
+
 // #29 — allowlist of environment variables the device-shell PTY (the adb client
 // + the terminal) legitimately needs. Everything else in the server's
 // process.env — which may carry app/user secrets — is dropped rather than handed
@@ -151,7 +166,26 @@ export class RemoteShell extends Mw {
             if (!this.term) {
                 return;
             }
-            this.term.write(event.data as string);
+            // Control frames (resize/stop) arrive as JSON over the same channel
+            // as keystrokes. Writing a JSON frame into the PTY used to feed the
+            // whole payload to adb's stdin, which echoed it back into the
+            // terminal (a `{"type":"resize",...,"udid":…}}` line appearing on
+            // phone browsers whenever the viewport resized). Parse control
+            // frames; only genuine keystroke data reaches the PTY.
+            const raw = event.data;
+            if (typeof raw === 'string') {
+                try {
+                    const parsed = JSON.parse(raw) as Message;
+                    const control = parsed?.data as { type?: string } | undefined;
+                    if (parsed?.type === EVENT_TYPE_SHELL && (control?.type === 'resize' || control?.type === 'stop')) {
+                        this.handleMessage(parsed);
+                        return;
+                    }
+                } catch {
+                    // Not JSON — keystroke data, write it through.
+                }
+            }
+            this.term.write(toPtyData(raw));
             return;
         }
         let data;

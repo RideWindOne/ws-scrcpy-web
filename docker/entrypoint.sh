@@ -37,6 +37,25 @@ if [ "$(id -u)" = '0' ]; then
     # chown is skipped and the directory just created above stays root's —
     # and adb aborts on it exactly as it did on /root. One directory, no cost.
     chown "$APP_UID:$APP_GID" /data/home
+    # Container self-update (rides the image's own restart cycle). The app
+    # (uid 1000) cannot touch /app/dist — image-owned, root-owned — so the
+    # update API stages a validated replacement at /data/pending-update/dist
+    # with a `ready` marker and exits 0; docker restarts us; this root shim
+    # swaps it in before the app starts. Only dist/ is ever replaced: never
+    # seed/, dependencies or start.sh. Invalid packages are discarded, never
+    # applied.
+    if [ -f /data/pending-update/ready ] && [ -d /data/pending-update/dist ]; then
+        if [ -f /data/pending-update/dist/index.js ] && [ -f /data/pending-update/dist/public/bundle.js ]; then
+            echo "[entrypoint] applying pending update to /app/dist"
+            rm -rf /app/dist.old
+            mv /app/dist /app/dist.old
+            mv /data/pending-update/dist /app/dist
+            rm -rf /data/pending-update /app/dist.old
+        else
+            echo "[entrypoint] discarding invalid pending update" >&2
+            rm -rf /data/pending-update
+        fi
+    fi
     # setpriv keeps this shell's environment, and this shell's HOME is /root.
     # adb creates $HOME/.android on EVERY invocation — `adb --version`
     # included — and aborts with a core dump when it cannot ("Cannot mkdir

@@ -18,6 +18,7 @@ import { SettingsApi } from './api/SettingsApi';
 import { SettingsBatchApi } from './api/SettingsBatchApi';
 import { TlsApi } from './api/TlsApi';
 import { UpdatesApi } from './api/UpdatesApi';
+import { ContainerUpdateApi } from './api/ContainerUpdateApi';
 import { UsersApi } from './api/UsersApi';
 import { WhoamiApi } from './api/WhoamiApi';
 import { AuthGate } from './auth/AuthGate';
@@ -207,6 +208,11 @@ if (__ssArgs) {
     }
     const updatesApi = new UpdatesApi(updateService);
     HttpServer.addApiHandler(updatesApi);
+
+    // Container self-update surface: stages a replacement dist/ for the
+    // entrypoint to swap in on restart. Inert outside a container (409).
+    const containerUpdateApi = new ContainerUpdateApi();
+    HttpServer.addApiHandler(containerUpdateApi);
 
     const whoamiApi = new WhoamiApi();
     HttpServer.addApiHandler(whoamiApi);

@@ -1,6 +1,7 @@
 import { Modal } from '../ui/Modal';
 import { isElevationDeclined, reasonToUserMessage } from './serviceFailureMessage';
 import { showStatusBanner } from './statusBanner';
+import { t } from './i18n';
 
 /**
  * What the first-run flow does after "yes, all users": reload (the install took,
@@ -96,25 +97,24 @@ export class SystemWideInstallModal extends Modal {
     private fillBody(container: HTMLElement): void {
         const question = document.createElement('p');
         question.style.cssText = 'margin: 0 0 12px;';
-        question.textContent = 'run ws-scrcpy-web for all users on this machine?';
+        question.textContent = t('syswide_question');
         container.appendChild(question);
 
         const yesLine = document.createElement('p');
         yesLine.style.cssText = 'margin: 0 0 12px;';
-        yesLine.textContent = 'clicking "yes, all users" installs the app to /opt with one administrator prompt.';
+        yesLine.textContent = t('syswide_yes_line');
         container.appendChild(yesLine);
 
         const noLine = document.createElement('p');
         noLine.style.cssText = 'margin: 0 0 16px;';
-        noLine.textContent =
-            'clicking "no, me only" will leave the application running from wherever you launch it from.';
+        noLine.textContent = t('syswide_no_line');
         container.appendChild(noLine);
 
         const buttons = document.createElement('div');
         buttons.style.cssText = 'display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;';
 
         this.installBtn = document.createElement('button');
-        this.installBtn.textContent = 'yes, all users';
+        this.installBtn.textContent = t('syswide_yes');
         this.installBtn.className = 'modal-button modal-button-primary';
         this.installBtn.addEventListener('click', () => {
             this.opts.onInstall();
@@ -123,7 +123,7 @@ export class SystemWideInstallModal extends Modal {
         buttons.appendChild(this.installBtn);
 
         this.declineBtn = document.createElement('button');
-        this.declineBtn.textContent = 'no, me only';
+        this.declineBtn.textContent = t('syswide_no');
         this.declineBtn.className = 'modal-button';
         this.declineBtn.addEventListener('click', () => {
             this.opts.onDecline();

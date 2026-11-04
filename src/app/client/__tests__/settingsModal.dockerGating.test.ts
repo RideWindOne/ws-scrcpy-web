@@ -206,7 +206,12 @@ describe('SettingsModal applies the gating only in a container', () => {
         await flush();
 
         expect(document.querySelector('[data-docker-note="service"]')).not.toBeNull();
-        expect(document.querySelector('[data-docker-note="updates"]')).not.toBeNull();
+        // Updates is no longer a note in a container: it becomes the in-app
+        // updater tab (manual upload + GitHub). Service and Dependencies stay
+        // notes because a container truly has no service or dependency set to
+        // manage.
+        expect(document.querySelector('[data-docker-note="updates"]')).toBeNull();
+        expect(document.querySelector('[data-settings-tab="container-updates"]')).not.toBeNull();
         expect(document.querySelector('[data-docker-note="dependencies"]')).not.toBeNull();
         // The real Dependencies body is GONE, not merely covered. This can no
         // longer be "the hook is absent" — the note deliberately carries the same
@@ -250,13 +255,13 @@ describe('SettingsModal applies the gating only in a container', () => {
         await flush();
 
         const serviceNote = document.querySelector<HTMLElement>('[data-docker-note="service"]');
-        const updatesNote = document.querySelector<HTMLElement>('[data-docker-note="updates"]');
+        const updatesTab = document.querySelector<HTMLElement>('[data-settings-tab="container-updates"]');
         expect(serviceNote, 'service note missing').not.toBeNull();
-        expect(updatesNote, 'updates note missing').not.toBeNull();
-        // Users is the default active tab, so both notes must be hidden, not
+        expect(updatesTab, 'container updates tab missing').not.toBeNull();
+        // Users is the default active tab, so both must be hidden, not
         // rendered visible beside it.
         expect(serviceNote?.hidden).toBe(true);
-        expect(updatesNote?.hidden).toBe(true);
+        expect(updatesTab?.hidden).toBe(true);
 
         const tabButtons = [...document.querySelectorAll<HTMLButtonElement>('.settings-tab')];
         const updatesTabBtn = tabButtons.find((b) => b.textContent === 'Updates');
@@ -264,17 +269,17 @@ describe('SettingsModal applies the gating only in a container', () => {
         expect(updatesTabBtn, 'Updates tab button missing').toBeTruthy();
         expect(serviceTabBtn, 'Service tab button missing').toBeTruthy();
 
-        // Clicking through to Updates reveals ONLY the Updates note -- proving
-        // TabStrip's cache was updated to the replacement node, not left
-        // pointing at the detached original.
+        // Clicking through to Updates reveals ONLY the in-app updater tab --
+        // proving TabStrip's cache was updated to the replacement node, not
+        // left pointing at the detached original.
         updatesTabBtn?.click();
-        expect(updatesNote?.hidden).toBe(false);
+        expect(updatesTab?.hidden).toBe(false);
         expect(serviceNote?.hidden).toBe(true);
 
         // And Service, symmetrically.
         serviceTabBtn?.click();
         expect(serviceNote?.hidden).toBe(false);
-        expect(updatesNote?.hidden).toBe(true);
+        expect(updatesTab?.hidden).toBe(true);
 
         // Dependencies is the third swap (item 135) and gets the same treatment:
         // its note must be hidden behind the active tab and revealed by its own

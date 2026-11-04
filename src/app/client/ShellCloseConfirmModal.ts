@@ -1,4 +1,5 @@
 import { Modal } from '../ui/Modal';
+import { t } from './i18n';
 
 export class ShellCloseConfirmModal extends Modal {
     private resolveFn: ((value: boolean) => void) | null = null;
@@ -11,7 +12,7 @@ export class ShellCloseConfirmModal extends Modal {
     }
 
     private constructor(resolve: (value: boolean) => void) {
-        super({ title: 'End Shell Session' });
+        super({ title: t('shell_close_title') });
         this.resolveFn = resolve;
         this.dialog.classList.add('shell-close-confirm-modal');
         queueMicrotask(() => this.fillBody(this.bodyEl));
@@ -24,30 +25,33 @@ export class ShellCloseConfirmModal extends Modal {
     private fillBody(container: HTMLElement): void {
         const message = document.createElement('p');
         message.style.cssText = 'margin: 0 0 12px;';
-        message.textContent = 'ending the shell session loses any active work in the shell.';
+        message.textContent = t('shell_close_message');
         container.appendChild(message);
 
         const question = document.createElement('p');
         question.style.cssText = 'margin: 0 0 8px;';
-        question.textContent = 'close anyway?';
+        question.textContent = t('shell_close_question');
         container.appendChild(question);
     }
 
     protected override buildFooter(): HTMLElement | null {
         const footer = document.createElement('div');
-        footer.style.cssText = 'display: flex; gap: 8px; justify-content: flex-end;';
+        footer.style.cssText =
+            'display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;';
 
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'modal-button';
-        cancelBtn.textContent = 'cancel';
+        cancelBtn.textContent = t('cancel_btn');
+        cancelBtn.style.cssText = 'min-height:44px;min-width:96px;';
         cancelBtn.addEventListener('click', () => this.resolveAndClose(false));
         footer.appendChild(cancelBtn);
 
         const closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.className = 'modal-button';
-        closeBtn.textContent = 'close';
+        closeBtn.textContent = t('close_anyway');
+        closeBtn.style.cssText = 'min-height:44px;min-width:96px;';
         closeBtn.addEventListener('click', () => this.resolveAndClose(true));
         footer.appendChild(closeBtn);
 

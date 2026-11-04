@@ -16,6 +16,7 @@ import { ServiceOperationModal } from '../../ServiceOperationModal';
 import { reasonToUserMessage } from '../../serviceFailureMessage';
 import { isStaleTokenRefusal } from '../../staleToken';
 import type { StagedSettingsStore } from '../StagedSettingsStore';
+import { t } from '../../i18n';
 import {
     buildDynamicLabelRow,
     buildItem,
@@ -34,7 +35,7 @@ import type { TabContext } from './EmbeddingTab';
  * line of its own; its old branch here had no caller and was removed (item 157).
  */
 export function uninstallFollowupMessage(): string {
-    return 'service removed. the system service has been stopped. relaunch the app manually to use local mode.';
+    return t('service_removed_note');
 }
 
 // The install hand-off poll and its pure classifier live in installHandoffPoll.ts,
@@ -99,7 +100,7 @@ export interface SystemServiceInstallGate {
 export function systemServiceInstallGate(input: { machineWideInstalled: boolean }): SystemServiceInstallGate {
     return input.machineWideInstalled
         ? { enabled: true, note: null }
-        : { enabled: false, note: 'system service install requires installing system-wide for all users first.' };
+        : { enabled: false, note: t('service_install_requires_systemwide') };
 }
 
 /**
@@ -221,7 +222,7 @@ const refreshers = new WeakMap<HTMLElement, (callbacks: ServiceTabCallbacks) => 
  */
 export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): HTMLElement {
     // `body` is the tab's card: everything below renders into it, one item per setting.
-    const { section, card: body } = buildSection('Service');
+    const { section, card: body } = buildSection(t('tab_service'));
     // The tab's one status line. Built now, but below the card all the same:
     // `body` is the section's only card, and only its contents are redrawn.
     const tabAlert = buildTabAlert(section);
@@ -233,7 +234,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
     // subject even before the network answers, since refreshService() firing is
     // now entirely external/gated (see the class doc above) and this placeholder
     // is genuinely the only thing `buildServiceTab` can render synchronously.
-    placeholder.textContent = 'loading install/uninstall status…';
+    placeholder.textContent = t('loading_status');
     body.appendChild(buildItem(placeholder));
 
     // Replaces the instance fields `this.servicePlatform` / `this.serviceScopeSystemRadio`
@@ -247,7 +248,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
         const retryBtn = document.createElement('button');
         retryBtn.type = 'button';
         retryBtn.className = 'settings-btn';
-        retryBtn.textContent = 'retry';
+        retryBtn.textContent = t('retry');
         retryBtn.addEventListener('click', onRetry);
         const { row, labelEl } = buildDynamicLabelRow(msg, retryBtn);
         labelEl.classList.add('settings-status-error');
@@ -289,7 +290,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
             notice.className = 'settings-status';
             notice.style.gridColumn = '1 / -1';
             notice.textContent =
-                resp.unsupportedReason || 'service mode is currently windows-only. linux support arrives later in SP3.';
+                resp.unsupportedReason || t('service_windows_only');
             body.appendChild(buildItem(notice));
             return;
         }
@@ -327,7 +328,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
             userRadio.value = 'user';
             userRadio.checked = st.userChecked;
             userLabel.appendChild(userRadio);
-            userLabel.appendChild(document.createTextNode('user'));
+            userLabel.appendChild(document.createTextNode(t('service_install_user')));
             if (st.locked) lockScopeRadioControl(userLabel, userRadio);
             scopeFrag.appendChild(userLabel);
 
@@ -339,11 +340,11 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
             sysRadio.value = 'system';
             sysRadio.checked = st.systemChecked;
             sysLabel.appendChild(sysRadio);
-            sysLabel.appendChild(document.createTextNode('system (req. sudo)'));
+            sysLabel.appendChild(document.createTextNode(t('system_req_sudo')));
             if (st.locked) lockScopeRadioControl(sysLabel, sysRadio);
             scopeFrag.appendChild(sysLabel);
 
-            body.appendChild(buildItem(buildRow('service scope', scopeFrag)));
+            body.appendChild(buildItem(buildRow(t('service_scope'), scopeFrag)));
             // serviceScopeSystemRadio feeds the install request body; null it
             // out when locked so the install handler (unreachable in that state
             // anyway) can't accidentally consume a stale value.
@@ -360,7 +361,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
         btn.type = 'button';
         if (status === 'not-installed') {
             btn.className = 'settings-btn settings-btn-ready';
-            btn.textContent = 'not installed — install?';
+            btn.textContent = t('not_installed_install');
             btn.addEventListener('click', () => {
                 void onInstallService(btn, callbacks);
             });
@@ -372,7 +373,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
             });
         }
         // The install row's item; the system-scope gate note below joins it.
-        const installItem = buildItem(buildRow('installs/uninstalls server service', btn));
+        const installItem = buildItem(buildRow(t('installs_uninstalls_service'), btn));
         body.appendChild(installItem);
 
         // Linux: gate the system-scope install button on a prior machine-wide
@@ -422,7 +423,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
         loading.className = 'settings-status';
         loading.style.gridColumn = '1 / -1';
         // Matches the build-time placeholder's wording — see the comment there.
-        loading.textContent = 'loading install/uninstall status…';
+        loading.textContent = t('loading_status');
         body.appendChild(buildItem(loading));
 
         const retry = (): void => void runRefresh(callbacks);
@@ -455,7 +456,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
         if (isLinux && !isSystemScope) {
             // User scope on Linux: no elevation needed, proceed directly.
         } else {
-            const opts: AdminConfirmOptions = { action: 'install service' };
+            const opts: AdminConfirmOptions = { action: t('install_service') };
             if (servicePlatform) opts.platform = servicePlatform;
             const confirmed = await ctx.askChild(() => AdminConfirmModal.confirm(opts), false);
             if (!confirmed) return;
@@ -463,7 +464,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
 
         btn.disabled = true;
         const prevText = btn.textContent;
-        btn.textContent = 'installing…';
+        btn.textContent = t('installing');
 
         const requestBody: { scope?: 'user' | 'system' } = {};
         if (serviceScopeSystemRadio) {
@@ -493,7 +494,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
             // reflect the hand-off window — local instance is exiting,
             // systemd is restarting, service will bind the same port.
             if (isSystemScope) {
-                btn.textContent = 'switching to the system service…';
+                btn.textContent = t('switching_system_service');
             }
             // §39: poll /api/service/status until the service has taken over. The
             // loop (dead window, stale-token 403, port shift) is shared with the
@@ -508,7 +509,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
                 onReconnect: () => {
                     // Same-port handoff: reload the current URL after a short
                     // grace so the service has bound the port.
-                    btn.textContent = 'reconnecting…';
+                    btn.textContent = t('reconnecting');
                     setTimeout(() => {
                         window.location.reload();
                     }, INSTALL_HANDOFF_RECONNECT_DELAY_MS);
@@ -532,7 +533,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
         if (isLinux && !isSystemScope) {
             // User scope on Linux: no elevation needed, proceed directly.
         } else {
-            const opts: AdminConfirmOptions = { action: 'uninstall service' };
+            const opts: AdminConfirmOptions = { action: t('uninstall_service') };
             if (servicePlatform) opts.platform = servicePlatform;
             const confirmed = await ctx.askChild(() => AdminConfirmModal.confirm(opts), false);
             if (!confirmed) return;
@@ -540,7 +541,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
 
         btn.disabled = true;
         const prevText = btn.textContent;
-        btn.textContent = 'uninstalling…';
+        btn.textContent = t('uninstalling');
 
         const modal = new ServiceOperationModal({ operation: 'uninstall' });
         try {
@@ -568,7 +569,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
                     // actually gone, and surface a failure if it never does.
                     modal.close();
                     // In progress: on the tab's line until the outcome replaces it.
-                    tabAlert.show('busy', 'removing the system service…');
+                    tabAlert.show('busy', t('removing_system_service'));
                     const outcome = await pollServiceUninstalled();
                     // 'stopped' is this page's own server going quiet: the service
                     // served this page and nothing relaunches after a system-scope
@@ -583,7 +584,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
                         failAction(
                             btn,
                             prevText,
-                            'the system service is still running — uninstall may not have completed. check the service logs and try again.',
+                            t('service_still_running_note'),
                         );
                     }
                     return;
@@ -606,7 +607,7 @@ export function buildServiceTab(ctx: TabContext, _store: StagedSettingsStore): H
                         clearInterval(poll);
                         modal.close();
                         // The uninstall ran; only the relaunch was not seen.
-                        settleAction('service uninstalled but fresh instance not detected. try reloading.', callbacks);
+                        settleAction(t('service_uninstalled_no_instance'), callbacks);
                         return;
                     }
                     try {

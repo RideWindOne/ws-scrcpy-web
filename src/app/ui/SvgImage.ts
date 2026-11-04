@@ -7,10 +7,13 @@ import DevicePhoneSVG from '../../public/images/buttons/device_phone.svg';
 import DeviceTabletSVG from '../../public/images/buttons/device_tablet.svg';
 import DeviceTvSVG from '../../public/images/buttons/device_tv.svg';
 import DpadSVG from '../../public/images/buttons/dpad.svg';
+import FullscreenSVG from '../../public/images/buttons/fullscreen.svg';
 import MenuSVG from '../../public/images/buttons/menu.svg';
 import OfflineSVG from '../../public/images/buttons/offline.svg';
 import RefreshSVG from '../../public/images/buttons/refresh.svg';
 import SettingsSVG from '../../public/images/buttons/settings.svg';
+import ScreenOffSVG from '../../public/images/buttons/screen_off.svg';
+import PatternLockSVG from '../../public/images/skin-light/ic_pattern_lock.svg';
 import ToggleOffSVG from '../../public/images/buttons/toggle_off.svg';
 import ToggleOnSVG from '../../public/images/buttons/toggle_on.svg';
 import TouchSVG from '../../public/images/buttons/touch.svg';
@@ -51,6 +54,9 @@ export enum Icon {
     DEVICE_TV = 22,
     DEVICE_TABLET = 23,
     DEVICE_PHONE = 24,
+    FULLSCREEN = 25,
+    SCREEN_OFF = 26,
+    PATTERN_LOCK = 27,
 }
 
 export default class SvgImage {
@@ -107,6 +113,12 @@ export default class SvgImage {
                 return DeviceTabletSVG;
             case Icon.DEVICE_PHONE:
                 return DevicePhoneSVG;
+            case Icon.FULLSCREEN:
+                return FullscreenSVG;
+            case Icon.SCREEN_OFF:
+                return ScreenOffSVG;
+            case Icon.PATTERN_LOCK:
+                return PatternLockSVG;
             default:
                 return '';
         }

@@ -46,6 +46,10 @@ export class ConnectModal extends Modal {
             audioCodec: params.audioCodec as 'opus' | 'aac' | 'flac' | 'raw' | undefined,
             keyboard: true,
             deviceKind,
+            turnScreenOff: params.turnScreenOff,
+            lockOnDisconnect: params.lockOnDisconnect,
+            stayAwake: params.stayAwake,
+            wakeLock: params.wakeLock,
             onDisconnect: () => this.close(),
             onError: (err) => {
                 console.error('[ConnectModal]', err);

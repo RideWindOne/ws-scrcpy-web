@@ -46,6 +46,15 @@ export interface StartStreamOptions {
     audioCodec?: 'opus' | 'aac' | 'flac' | 'raw' | undefined;
     keyboard?: boolean | undefined; // default true
 
+    /** Turn device screen off after connection */
+    turnScreenOff?: boolean | undefined;
+    /** Lock device on disconnect */
+    lockOnDisconnect?: boolean | undefined;
+    /** Keep device awake during session */
+    stayAwake?: boolean | undefined;
+    /** Keep control (browser) awake during session (Wake Lock API) */
+    wakeLock?: boolean | undefined;
+
     /**
      * Android device kind. When provided, seeds the stream toolbar's
      * D-pad/Touch toggle to the appropriate default (D-pad for TV,

@@ -5,6 +5,10 @@ export interface StreamParamsInput {
     audioEnabled?: boolean | undefined;
     audioSource?: 'playback' | 'output' | 'mic' | undefined;
     encoderName?: string | undefined;
+    turnScreenOff?: boolean | undefined;
+    lockOnDisconnect?: boolean | undefined;
+    stayAwake?: boolean | undefined;
+    cleanupOnDisconnect?: boolean | undefined;
 }
 
 export interface VideoSettingsInput {
@@ -120,5 +124,21 @@ export function applyStreamParams(url: URL, params: StreamParamsInput, videoSett
 
     if (params.encoderName) {
         url.searchParams.set('videoEncoder', params.encoderName);
+    }
+
+    if (typeof params.turnScreenOff === 'boolean') {
+        url.searchParams.set('turnScreenOff', params.turnScreenOff ? 'true' : 'false');
+    }
+
+    if (typeof params.lockOnDisconnect === 'boolean') {
+        url.searchParams.set('lockOnDisconnect', params.lockOnDisconnect ? 'true' : 'false');
+    }
+
+    if (typeof params.stayAwake === 'boolean') {
+        url.searchParams.set('stayAwake', params.stayAwake ? 'true' : 'false');
+    }
+
+    if (typeof params.cleanupOnDisconnect === 'boolean') {
+        url.searchParams.set('cleanupOnDisconnect', params.cleanupOnDisconnect ? 'true' : 'false');
     }
 }

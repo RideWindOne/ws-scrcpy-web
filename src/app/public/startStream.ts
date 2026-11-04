@@ -34,6 +34,7 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
 
     let isConnected = false;
     let stopFn: (() => void) | undefined;
+    let wakeLockSentinel: { release: () => void } | null = null;
 
     const codecMap: Record<NonNullable<StartStreamOptions['codec']>, string> = {
         h264: 'h264',
@@ -71,6 +72,9 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
         ...(typeof options.audio === 'boolean' ? { audioEnabled: options.audio } : {}),
         ...(options.audioSource !== undefined ? { audioSource: options.audioSource } : {}),
         ...(options.audioCodec !== undefined ? { audioCodec: options.audioCodec } : {}),
+        ...(typeof options.turnScreenOff === 'boolean' ? { turnScreenOff: options.turnScreenOff } : {}),
+        ...(typeof options.lockOnDisconnect === 'boolean' ? { lockOnDisconnect: options.lockOnDisconnect } : {}),
+        ...(typeof options.stayAwake === 'boolean' ? { stayAwake: options.stayAwake } : {}),
     };
 
     // Only build a VideoSettings when the caller actually provided one of the
@@ -106,6 +110,11 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
             container,
             () => {
                 isConnected = false;
+                // Release wake lock
+                if (wakeLockSentinel) {
+                    wakeLockSentinel.release();
+                    wakeLockSentinel = null;
+                }
                 options.onDisconnect?.();
             },
             options.deviceKind,
@@ -120,6 +129,14 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
         const hooked = instance as unknown as StreamClientInstanceHooks;
         hooked.onMetadataReceived = (info: StreamInfo) => {
             isConnected = true;
+            // Request wake lock if enabled
+            if (options.wakeLock && 'wakeLock' in navigator) {
+                navigator.wakeLock.request('screen').then((sentinel) => {
+                    wakeLockSentinel = sentinel;
+                }).catch((err) => {
+                    console.warn('[startStream] Failed to request wake lock:', err);
+                });
+            }
             options.onConnect?.(info);
         };
         hooked.onErrorReceived = (err: Error) => {

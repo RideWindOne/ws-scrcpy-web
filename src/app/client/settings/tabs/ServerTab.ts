@@ -5,6 +5,8 @@ import { canSeeSection } from '../../adminGate';
 import { ConfirmModal } from '../../ConfirmModal';
 import { ResetConfirmModal } from '../../ResetConfirmModal';
 import { settingsService } from '../../SettingsService';
+import { setDebugOverlayVisible } from '../../DebugOverlay';
+import { t } from '../../i18n';
 import { isElevationDeclined, reasonToUserMessage } from '../../serviceFailureMessage';
 import { probeStaleToken, type TokenProbe } from '../../staleTokenReload';
 import { UninstallConfirmModal } from '../../UninstallConfirmModal';
@@ -66,7 +68,7 @@ export const HTTPS_PORT_GATE_NOTE_PARTS: ReadonlyArray<string | { text: string; 
 export const PORT_RESTART_NOTE = 'changing either port restarts the server; any active streams will drop.';
 
 /** The inline refusal on whichever port row was just edited onto the other's value. */
-export const PORT_COLLISION_ERROR = 'the http and https ports must differ.';
+export const PORT_COLLISION_ERROR = t('ports_must_differ');
 
 /**
  * Notification 5: a sub-1024 port needs elevated privileges outside win32.
@@ -147,7 +149,7 @@ async function readTlsPortState(): Promise<{ ready: boolean; port: number | null
  * same class of unearned success claim as #120.
  */
 export function appUninstallStartedMessage(): string {
-    return 'uninstall started — ws-scrcpy-web is shutting down and removing itself. you can close this tab.';
+    return t('uninstall_started_note');
 }
 
 /**
@@ -199,7 +201,7 @@ export function stopServerButtonState(resp: ScopeRadioInputs): {
     return isInstalled
         ? {
               disabled: true,
-              note: 'managed by the system service — stop it via your service manager, or uninstall the service.',
+              note: t('managed_by_service_note'),
           }
         : { disabled: false, note: null };
 }
@@ -244,7 +246,7 @@ export function appSectionButtonsState(resp: {
     return {
         showInstallAllUsers: linux && !container,
         installAllUsersDisabled: linux && machineWide,
-        installAllUsersNote: linux && machineWide ? 'already installed for all users (/opt)' : null,
+        installAllUsersNote: linux && machineWide ? t('already_installed_all_users') : null,
         showUninstall: (linux || resp.platform === 'win32') && !container,
     };
 }
@@ -280,7 +282,7 @@ export function buildResetControl(opts: {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'settings-btn settings-btn-primary';
-    button.textContent = 'reset';
+    button.textContent = t('reset');
 
     button.addEventListener('click', () => {
         void (async () => {
@@ -330,7 +332,7 @@ export function buildInstallAllUsersControl(opts: { reload: () => void; alert: P
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'settings-btn settings-btn-primary';
-    button.textContent = 'install';
+    button.textContent = t('install');
 
     const note = document.createElement('p');
     note.className = 'settings-status';
@@ -339,7 +341,7 @@ export function buildInstallAllUsersControl(opts: { reload: () => void; alert: P
 
     button.addEventListener('click', () => {
         button.disabled = true;
-        button.textContent = 'installing…';
+        button.textContent = t('installing');
         void (async () => {
             try {
                 const res = await fetch('/api/service/install-system-wide', { method: 'POST' });
@@ -353,13 +355,13 @@ export function buildInstallAllUsersControl(opts: { reload: () => void; alert: P
                     'error',
                     (await isElevationDeclined(res))
                         ? reasonToUserMessage('uac-declined', '')
-                        : 'install failed — see the server logs and try again.',
+                        : t('install_failed_logs'),
                 );
             } catch {
-                opts.alert.show('error', 'install failed — could not reach the server.');
+                opts.alert.show('error', t('install_failed_reach'));
             }
             button.disabled = false;
-            button.textContent = 'install';
+            button.textContent = t('install');
         })();
     });
 
@@ -398,7 +400,7 @@ export function buildUninstallControl(opts: {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'settings-btn settings-btn-danger';
-    button.textContent = 'uninstall…';
+    button.textContent = t('uninstall');
 
     button.addEventListener('click', () => {
         void (async () => {
@@ -408,7 +410,7 @@ export function buildUninstallControl(opts: {
             });
             if (!r.confirmed) return;
             button.disabled = true;
-            button.textContent = 'uninstalling…';
+            button.textContent = t('uninstalling');
             try {
                 const res = await fetch('/api/service/uninstall-app', {
                     method: 'POST',
@@ -431,13 +433,13 @@ export function buildUninstallControl(opts: {
                     'error',
                     body?.reason === 'unsupported' && typeof body.error === 'string'
                         ? body.error
-                        : 'uninstall failed — see the server logs and try again.',
+                        : t('uninstall_failed_logs'),
                 );
             } catch {
-                opts.alert.show('error', 'uninstall failed — could not reach the server.');
+                opts.alert.show('error', t('uninstall_failed_reach'));
             }
             button.disabled = false;
-            button.textContent = 'uninstall…';
+            button.textContent = t('uninstall');
         })();
     });
 
@@ -451,7 +453,7 @@ function showAppStoppedOverlay(): void {
         'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;' +
         'padding:1rem;text-align:center;opacity:0.85;';
     const msg = document.createElement('p');
-    msg.textContent = 'app stopped — you can close this tab.';
+    msg.textContent = t('app_stopped');
     overlay.appendChild(msg);
     document.body.replaceChildren(overlay);
 }
@@ -479,15 +481,14 @@ async function onStopServerExit(btn: HTMLButtonElement, askChild: AskChild): Pro
             ConfirmModal.confirm({
                 title: 'stop server & exit',
                 message:
-                    'the app will shut down and this browser tab will try to close. ' +
-                    'any active device connections will end. continue?',
+                    t('shutdown_warn') + ' ' + t('end_connections_q'),
             }),
         false,
     );
     if (!confirmed) return;
 
     btn.disabled = true;
-    btn.textContent = 'stopping…';
+    btn.textContent = t('stopping');
     try {
         await fetch('/api/server/shutdown', { method: 'POST' });
     } catch {
@@ -501,7 +502,7 @@ async function onStopServerExit(btn: HTMLButtonElement, askChild: AskChild): Pro
 }
 
 /** The overlay's words while the server restarts, and if it does not come back. */
-export const RESTARTING_MESSAGE = 'restarting the server… this page will reload once it is back.';
+export const RESTARTING_MESSAGE = t('restarting_note');
 export const RESTART_TIMEOUT_MESSAGE =
     "the server hasn't come back yet. reload this page to check, or look at the server log.";
 
@@ -553,9 +554,9 @@ function showRestartingOverlay(): HTMLParagraphElement {
  */
 export function restartConfirmMessage(unsavedChanges: boolean): string {
     return (
-        (unsavedChanges ? 'your unsaved settings changes will be lost. ' : '') +
-        'the server will restart and this page will reload once it is back. ' +
-        'any active device connections will end. continue?'
+        (unsavedChanges ? t('unsaved_lost_warn') + ' ' : '') +
+        t('restart_warn') + ' ' +
+        t('end_connections_q')
     );
 }
 
@@ -574,7 +575,7 @@ async function onRestartServer(
     const confirmed = await askChild(
         () =>
             ConfirmModal.confirm({
-                title: 'restart server',
+                title: t('restart_server'),
                 message: restartConfirmMessage(hasUnsavedChanges()),
             }),
         false,
@@ -582,7 +583,7 @@ async function onRestartServer(
     if (!confirmed) return;
 
     btn.disabled = true;
-    btn.textContent = 'restarting…';
+    btn.textContent = t('restarting');
     let accepted = false;
     try {
         accepted = (await fetch('/api/server/restart', { method: 'POST' })).ok;
@@ -592,7 +593,7 @@ async function onRestartServer(
     if (!accepted) {
         alert.show('error', "couldn't restart the server.");
         btn.disabled = false;
-        btn.textContent = 'restart server';
+        btn.textContent = t('restart_server');
         return;
     }
 
@@ -659,11 +660,11 @@ const adminUnreachableAppliers = new WeakMap<HTMLElement, () => void>();
  * untitled card holding only the note (0.5.8, `applyAdminUnreachable`).
  */
 export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTMLElement {
-    const { section } = buildSplitSection('Server');
+    const { section } = buildSplitSection(t('tab_server'));
     // The tab's one status line: the change-password, log-out and install
     // results. Built first, and every card goes above it (`addCard`).
     const tabAlert = buildTabAlert(section);
-    const settingsCard = addCard(section, 'Settings');
+    const settingsCard = addCard(section, t('card_settings'));
 
     // Replaces the instance fields `SettingsModal` held for this section
     // (`this.webPortInput`, `this.stopServerButton`, …). Each stays null when its
@@ -728,7 +729,25 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         sendFirstRunReset: () => !containerMode && !adminUnreachable,
         askChild: ctx.askChild,
     });
-    settingsCard.appendChild(buildItem(buildRow('reset all my settings', reset.button)));
+    settingsCard.appendChild(buildItem(buildRow(t('reset_all_settings'), reset.button)));
+
+    // 1a. debug overlay — user-level, always visible. Global setting
+    //     `debugOverlay` (defaults to HIDDEN when unset; an operator opts in).
+    //     Applies immediately and persists across page reloads.
+    const debugToggle = document.createElement('input');
+    debugToggle.type = 'checkbox';
+    debugToggle.className = 'settings-input';
+    debugToggle.checked = settingsService.isDebugOverlayEnabled();
+    debugToggle.addEventListener('change', () => {
+        const enabled = debugToggle.checked;
+        setDebugOverlayVisible(enabled);
+        void settingsService.patchGlobal({ debugOverlay: enabled }).catch(() => {
+            // Revert the checkbox if the write failed — the overlay stays as it was.
+            debugToggle.checked = !enabled;
+            setDebugOverlayVisible(!enabled);
+        });
+    });
+    settingsCard.appendChild(buildItem(buildRow(t('debug_overlay'), debugToggle)));
 
     // 1b. change password — user-level, only shown when auth is enabled
     //     (in open mode there is no password to change). Reveals an inline
@@ -750,14 +769,14 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         curRow.style.cssText = 'display:flex; align-items:center; gap:4px;';
         const curInput = document.createElement('input');
         curInput.type = 'password';
-        curInput.placeholder = 'current password';
+        curInput.placeholder = t('current_password');
         curInput.className = 'settings-input';
         curInput.setAttribute('data-field', 'cp-current');
         const curEye = document.createElement('button');
         curEye.type = 'button';
         curEye.className = 'modal-button';
         curEye.textContent = '👁';
-        curEye.title = 'show/hide';
+        curEye.title = t('show_hide');
         curEye.addEventListener('click', () => {
             curInput.type = curInput.type === 'password' ? 'text' : 'password';
         });
@@ -770,14 +789,14 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         newRow.style.cssText = 'display:flex; align-items:center; gap:4px;';
         const newInput = document.createElement('input');
         newInput.type = 'password';
-        newInput.placeholder = 'new password';
+        newInput.placeholder = t('new_password');
         newInput.className = 'settings-input';
         newInput.setAttribute('data-field', 'cp-new');
         const newEye = document.createElement('button');
         newEye.type = 'button';
         newEye.className = 'modal-button';
         newEye.textContent = '👁';
-        newEye.title = 'show/hide';
+        newEye.title = t('show_hide');
         newEye.addEventListener('click', () => {
             newInput.type = newInput.type === 'password' ? 'text' : 'password';
         });
@@ -791,11 +810,11 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         const saveBtn = document.createElement('button');
         saveBtn.type = 'button';
         saveBtn.className = 'modal-button';
-        saveBtn.textContent = 'save';
+        saveBtn.textContent = t('save_btn');
         saveBtn.addEventListener('click', () => {
             void (async () => {
                 if (!curInput.value || !newInput.value) {
-                    cpStatus.textContent = 'enter your current and new password';
+                    cpStatus.textContent = t('enter_pwd_hint');
                     cpStatus.hidden = false;
                     return;
                 }
@@ -805,16 +824,16 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
                 try {
                     const ok = await authClient.changePassword(curInput.value, newInput.value);
                     if (ok) {
-                        tabAlert.show('success', 'password changed');
+                        tabAlert.show('success', t('password_changed'));
                         cpForm.style.display = 'none';
                         cpBtn.style.display = '';
                         curInput.value = '';
                         newInput.value = '';
                     } else {
-                        tabAlert.show('error', 'current password incorrect');
+                        tabAlert.show('error', t('current_password_incorrect'));
                     }
                 } catch {
-                    tabAlert.show('error', 'could not reach server');
+                    tabAlert.show('error', t('could_not_reach'));
                 }
                 saveBtn.disabled = false;
             })();
@@ -822,7 +841,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'modal-button';
-        cancelBtn.textContent = 'cancel';
+        cancelBtn.textContent = t('cancel');
         cancelBtn.addEventListener('click', () => {
             cpForm.style.display = 'none';
             cpBtn.style.display = '';
@@ -838,7 +857,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         const cpBtn = document.createElement('button');
         cpBtn.type = 'button';
         cpBtn.className = 'modal-button';
-        cpBtn.textContent = 'change password';
+        cpBtn.textContent = t('change_password');
         cpBtn.setAttribute('data-action', 'change-password');
         cpBtn.addEventListener('click', () => {
             cpBtn.style.display = 'none';
@@ -849,26 +868,26 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         const cpControl = document.createDocumentFragment();
         cpControl.appendChild(cpBtn);
         cpControl.appendChild(cpForm);
-        settingsCard.appendChild(buildItem(buildRow('password', cpControl), cpStatus));
+        settingsCard.appendChild(buildItem(buildRow(t('password'), cpControl), cpStatus));
 
         // Logout — user-level, only when authEnabled (you're only logged in when
         // auth is enabled). Placed adjacent to change-password. Not admin-gated.
         const logoutBtn = document.createElement('button');
         logoutBtn.type = 'button';
         logoutBtn.className = 'modal-button';
-        logoutBtn.textContent = 'log out';
+        logoutBtn.textContent = t('log_out');
         logoutBtn.setAttribute('data-action', 'logout');
         logoutBtn.addEventListener('click', () => {
             void (async () => {
                 try {
                     await authClient.logout();
                 } catch {
-                    tabAlert.show('error', 'logout request failed — reloading anyway.');
+                    tabAlert.show('error', t('logout_failed_reload'));
                 }
                 ctx.reload();
             })();
         });
-        settingsCard.appendChild(buildItem(buildRow('session', logoutBtn)));
+        settingsCard.appendChild(buildItem(buildRow(t('session'), logoutBtn)));
     }
 
     // The card that stands in for Ports and Application where the admin API
@@ -893,7 +912,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         // about either one. Hidden whole until the dialog knows it is on a
         // host (applyHostMode), with its heading: rows hidden inside a showing
         // card would leave an empty box (M6, see the end of this block).
-        const ports = addCard(section, 'Ports');
+        const ports = addCard(section, t('card_ports'));
         portsCard = ports;
 
         // 2. http port — a number input, and nothing else. Editing it STAGES the
@@ -921,7 +940,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         // fill-in from being reported as a change the user never made.
         store.register({ id: WEB_PORT_ID, label: WEB_PORT_LABEL, initial: null });
 
-        webPortRow = buildRow('http port', input);
+        webPortRow = buildRow(t('http_port'), input);
         labelInputByRow(webPortRow, input);
 
         const status = document.createElement('p');
@@ -953,7 +972,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         // port arrives later, on the /api/tls/state read refreshServerHttps makes.
         store.register({ id: HTTPS_PORT_ID, label: HTTPS_PORT_LABEL, initial: null });
 
-        httpsPortRow = buildRow('https port', httpsInput);
+        httpsPortRow = buildRow(t('https_port'), httpsInput);
         labelInputByRow(httpsPortRow, httpsInput);
 
         const httpsStatus = document.createElement('p');
@@ -1024,7 +1043,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
     if (canSeeSection(ctx.role, 'serverControls')) {
         // The Application card: the install lifecycle. "restart server" and
         // "stop server & exit" always show, so the card is never empty.
-        const application = addCard(section, 'Application');
+        const application = addCard(section, t('card_application'));
         applicationCard = application;
 
         // 2c. restart the server — first in the card (user, 0.5.9). Exit 75
@@ -1034,7 +1053,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         const restartBtn = document.createElement('button');
         restartBtn.type = 'button';
         restartBtn.className = 'settings-btn settings-btn-primary';
-        restartBtn.textContent = 'restart server';
+        restartBtn.textContent = t('restart_server');
         restartBtn.setAttribute('data-action', 'restart-server');
         restartBtn.addEventListener(
             'click',
@@ -1048,7 +1067,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
                 ),
         );
         restartServerButton = restartBtn;
-        application.appendChild(buildItem(buildRow('restart the server', restartBtn)));
+        application.appendChild(buildItem(buildRow(t('restart_the_server'), restartBtn)));
 
         // 3. install for all users (Linux-only) — hidden until
         //    applyServerServiceStatus reveals it on Linux. POSTs
@@ -1057,7 +1076,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         const install = buildInstallAllUsersControl({ reload: () => ctx.reload(), alert: tabAlert });
         installAllUsersButton = install.button;
         installAllUsersNote = install.note;
-        const installRow = buildRow('install for all users', install.button);
+        const installRow = buildRow(t('install_for_all_users'), install.button);
         setRowShown(installRow, false);
         installAllUsersRow = installRow;
         application.appendChild(buildItem(installRow, install.note));
@@ -1068,7 +1087,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         const stopBtn = document.createElement('button');
         stopBtn.type = 'button';
         stopBtn.className = 'settings-btn settings-btn-primary';
-        stopBtn.textContent = 'stop server & exit';
+        stopBtn.textContent = t('stop_server_exit');
         stopBtn.addEventListener('click', () => void onStopServerExit(stopBtn, ctx.askChild));
         stopServerButton = stopBtn;
 
@@ -1077,7 +1096,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         stopNote.style.gridColumn = '1 / -1';
         stopNote.hidden = true;
         stopServerNote = stopNote;
-        application.appendChild(buildItem(buildRow('stop the server and close the app', stopBtn), stopNote));
+        application.appendChild(buildItem(buildRow(t('stop_server_close_app'), stopBtn), stopNote));
 
         // 5. uninstall ws-scrcpy-web (Linux + win32) — hidden until revealed.
         //    Always enabled when shown (uninstalling is how you remove a
@@ -1090,7 +1109,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
             askChild: ctx.askChild,
         });
         uninstallButton = uninstall.button;
-        const row = buildRow('uninstall ws-scrcpy-web', uninstall.button);
+        const row = buildRow(t('uninstall_app'), uninstall.button);
         setRowShown(row, false);
         uninstallRow = row;
         application.appendChild(buildItem(row));
@@ -1148,7 +1167,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         if (!input) return false;
         const port = Number(input.value);
         if (!Number.isInteger(port) || port < 1024 || port > 65535) {
-            setServerStatus('port must be between 1024 and 65535', true);
+            setServerStatus(t('port_range_1024'), true);
             return false;
         }
         // Compared with the https port as staged, so a pair of edits that swap
@@ -1171,7 +1190,7 @@ export function buildServerTab(ctx: TabContext, store: StagedSettingsStore): HTM
         if (!input) return false;
         const port = Number(input.value);
         if (!Number.isInteger(port) || port < 1 || port > 65535) {
-            setHttpsStatus('port must be between 1 and 65535', true);
+            setHttpsStatus(t('port_range_1'), true);
             return false;
         }
         if (portsCollide(store.get(WEB_PORT_ID), port)) {

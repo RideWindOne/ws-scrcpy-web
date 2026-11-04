@@ -78,7 +78,7 @@ describe('ServerTab: Settings, Ports and Application cards', () => {
         expect(title.classList.contains('visually-hidden')).toBe(true);
         const cards = cardsOf(el);
         expect(cards.map((c) => c.heading.textContent)).toEqual(['Settings', 'Ports', 'Application']);
-        expect(labelsIn(cards[0]!.card)).toEqual(['reset all my settings', 'password', 'session']);
+        expect(labelsIn(cards[0]!.card)).toEqual(['reset all my settings', 'debug overlay', 'password', 'session']);
         // The http and https ports are separate items.
         expect(labelsIn(cards[1]!.card)).toEqual(['http port', 'https port']);
         expect(labelsIn(cards[2]!.card)).toEqual([
@@ -259,7 +259,7 @@ describe('ServerTab: Settings, Ports and Application cards', () => {
         const el = buildServerTab({ ...ctx, role: 'user' as const }, new StagedSettingsStore());
         const cards = cardsOf(el);
         expect(cards.map((c) => c.heading.textContent)).toEqual(['Settings']);
-        expect(labelsIn(cards[0]!.card)).toEqual(['reset all my settings']);
+        expect(labelsIn(cards[0]!.card)).toEqual(['reset all my settings', 'debug overlay']);
         // No admin cards, so no note to stand in for them, held back or not.
         applyServerAdminUnreachable(el);
         expect(el.querySelectorAll(':scope > .settings-card')).toHaveLength(1);

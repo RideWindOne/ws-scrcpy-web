@@ -9,6 +9,7 @@ import {
 import { ServiceOperationModal } from './ServiceOperationModal';
 import { settingsService } from './SettingsService';
 import { reasonToUserMessage } from './serviceFailureMessage';
+import { t } from './i18n';
 
 export type WelcomeChoice = 'service' | 'on-demand';
 
@@ -71,7 +72,7 @@ export class WelcomeModal extends Modal {
     private fillBody(container: HTMLElement): void {
         const intro = document.createElement('p');
         intro.style.cssText = 'margin: 0 0 8px;';
-        intro.appendChild(document.createTextNode('server is running on '));
+        intro.appendChild(document.createTextNode(t('welcome_server_on')));
         const link = document.createElement('a');
         // The address THIS browser reached the app on, not the serving
         // machine's loopback — a LAN user bookmarks their own URL.
@@ -92,7 +93,7 @@ export class WelcomeModal extends Modal {
         // brief hint about where to change the port later.
         const note = document.createElement('p');
         note.style.cssText = 'margin: 0 0 8px; color: var(--text-color-light); font-size: 13px;';
-        note.textContent = 'you can change the port anytime in settings.';
+        note.textContent = t('welcome_change_port');
         container.appendChild(note);
 
         const divider = document.createElement('hr');
@@ -101,15 +102,13 @@ export class WelcomeModal extends Modal {
 
         const heading = document.createElement('p');
         heading.style.cssText = 'margin: 0 0 8px; font-weight: 600; font-size: 14px;';
-        heading.textContent = 'run as a service?';
+        heading.textContent = t('welcome_run_service');
         this.headingEl = heading;
         container.appendChild(heading);
 
         const desc = document.createElement('p');
         desc.style.cssText = 'margin: 0 0 8px;';
-        desc.textContent =
-            'recommended for always-on access (headless servers, multi-user setups). ' +
-            'the server starts at login and runs in the background.';
+        desc.textContent = t('welcome_desc');
         this.descEl = desc;
         container.appendChild(desc);
 
@@ -133,7 +132,7 @@ export class WelcomeModal extends Modal {
         userRadio.value = 'user';
         userRadio.checked = true;
         userLabel.appendChild(userRadio);
-        userLabel.appendChild(document.createTextNode('just for me (no sudo)'));
+        userLabel.appendChild(document.createTextNode(t('welcome_just_me')));
         fieldset.appendChild(userLabel);
 
         const sysLabel = document.createElement('label');
@@ -143,7 +142,7 @@ export class WelcomeModal extends Modal {
         sysRadio.name = 'welcome-scope';
         sysRadio.value = 'system';
         sysLabel.appendChild(sysRadio);
-        sysLabel.appendChild(document.createTextNode('all users (requires sudo)'));
+        sysLabel.appendChild(document.createTextNode(t('welcome_all_users')));
         fieldset.appendChild(sysLabel);
 
         this.scopeFieldset = fieldset;
@@ -152,7 +151,7 @@ export class WelcomeModal extends Modal {
 
         const later = document.createElement('p');
         later.style.cssText = 'margin: 0 0 16px; color: var(--text-color-light); font-size: 13px;';
-        later.textContent = 'you can install/uninstall the service later in settings.';
+        later.textContent = t('welcome_later_settings');
         container.appendChild(later);
 
         // v0.1.9 bookmark hint. ws-scrcpy-web is a web app served from
@@ -211,7 +210,7 @@ export class WelcomeModal extends Modal {
         buttons.style.cssText = 'display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;';
 
         this.yesBtn = document.createElement('button');
-        this.yesBtn.textContent = 'yes, install service';
+        this.yesBtn.textContent = t('welcome_yes_install');
         this.yesBtn.style.cssText =
             'border: 0.5px solid var(--text-color, #ddd); border-radius: 6px; ' +
             'background: transparent; color: var(--text-color, #ddd); padding: 8px 16px; cursor: pointer;';
@@ -221,7 +220,7 @@ export class WelcomeModal extends Modal {
         buttons.appendChild(this.yesBtn);
 
         this.noBtn = document.createElement('button');
-        this.noBtn.textContent = 'no, run on demand';
+        this.noBtn.textContent = t('welcome_no_on_demand');
         this.noBtn.style.cssText =
             'border: 0.5px solid var(--text-color, #ddd); border-radius: 6px; ' +
             'background: transparent; color: var(--text-color, #ddd); padding: 8px 16px; cursor: pointer;';
@@ -262,20 +261,17 @@ export class WelcomeModal extends Modal {
         if (!statusResp) return;
 
         if (statusResp.platform === 'linux' && statusResp.supported) {
-            if (this.headingEl) this.headingEl.textContent = 'run as a systemd service?';
+            if (this.headingEl) this.headingEl.textContent = t('welcome_systemd');
             if (this.descEl) {
-                this.descEl.textContent =
-                    'recommended for always-on access. the server starts at login ' + '(or boot, for system scope).';
+                this.descEl.textContent = t('welcome_systemd_desc');
             }
             if (this.scopeFieldset) {
                 this.scopeFieldset.style.display = '';
             }
         } else if (statusResp.platform === 'win32') {
-            if (this.headingEl) this.headingEl.textContent = 'run as a windows service?';
+            if (this.headingEl) this.headingEl.textContent = t('welcome_windows_service');
             if (this.descEl) {
-                this.descEl.textContent =
-                    'recommended for always-on access (headless servers, multi-user setups). ' +
-                    'the server starts with windows and runs in the background.';
+                this.descEl.textContent = t('welcome_windows_desc');
             }
         }
     }

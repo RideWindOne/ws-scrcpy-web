@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 export type ChipState = 'scanning' | 'draining' | 'complete' | 'cancelled';
 
 export interface ScanProgressChipOptions {
@@ -56,13 +58,13 @@ export class ScanProgressChip {
         if (this.state !== 'scanning') return;
         this.setState('scanning');
         const counter = total > 0 ? ` · ${checked} / ${total}` : '';
-        const found = foundSoFar > 0 ? ` · ${foundSoFar} found` : '';
-        this.label.textContent = `Scanning network${counter}${found}`;
+        const found = foundSoFar > 0 ? ` · ${foundSoFar} ${t('scan_found')}` : '';
+        this.label.textContent = `${t('scan_progress')}${counter}${found}`;
     }
 
     setDraining(): void {
         this.setState('draining');
-        this.label.textContent = 'Finishing active scans…';
+        this.label.textContent = t('scan_finishing');
         this.drainStartedAt = Date.now();
     }
 

@@ -23,7 +23,7 @@ import VideoSettings from '../../VideoSettings';
 import { CODEC_ENCODER_PATTERNS, encoderMatchesCodec as matchesCodec } from './codecSelection';
 import type { DeviceTracker } from './DeviceTracker';
 import { StreamClientScrcpy } from './StreamClientScrcpy';
-
+import { t } from '../../client/i18n';
 type Range = {
     max: number;
     min: number;
@@ -56,6 +56,12 @@ export class ConfigureScrcpy extends Modal {
     private advancedChevron?: HTMLElement;
     private statusText = '';
     private statusKind?: 'error' | undefined;
+    private turnScreenOffCheckbox?: HTMLInputElement;
+    private lockOnDisconnectCheckbox?: HTMLInputElement;
+    private stayAwakeCheckbox?: HTMLInputElement;
+    private wakeLockCheckbox?: HTMLInputElement;
+    private cleanupOnDisconnectCheckbox?: HTMLInputElement;
+    private notificationsCheckbox?: HTMLInputElement;
 
     // advancedSection is queried from DOM in populateUI, used by toggleAdvanced
     private advancedSection?: HTMLElement;
@@ -71,6 +77,7 @@ export class ConfigureScrcpy extends Modal {
             title: deviceLabel,
             onClose: onClose as ((result: unknown) => void) | undefined,
         });
+        this.dialog.classList.add('scrcpy-config-modal');
         this.tracker = tracker;
         this.params = params;
         this.udid = descriptor.udid;
@@ -202,6 +209,12 @@ export class ConfigureScrcpy extends Modal {
                 }
             }
         }
+
+        // populateEncoderDropdown above rebuilt the encoder list and reset the
+        // selection, which clobbered the values just restored by
+        // updateVideoSettingsForPlayer. Re-apply the saved decoder/encoder here
+        // so the dialog reopens with what the user actually saved.
+        this.applyStoredSelections();
 
         // Mark ready — unless no player registered on an insecure origin, where
         // the status keeps the notice updateVideoSettingsForPlayer just set.
@@ -367,6 +380,34 @@ export class ConfigureScrcpy extends Modal {
             return null;
         }
         return element as HTMLInputElement;
+    }
+
+    /**
+     * Re-apply the user's saved decoder + encoder onto the (possibly rebuilt)
+     * dropdowns. The video codec has no VideoSettings field, so it is persisted
+     * separately in localStorage; the encoder comes from the per-device video
+     * settings (settingsService). Call after populateEncoderDropdown() has
+     * rebuilt the options, otherwise the rebuild resets the selection.
+     */
+    private applyStoredSelections(): void {
+        // 1) Saved video decoder
+        if (this.videoCodecSelect) {
+            const savedCodec = localStorage.getItem(`videoCodec_${this.udid}`);
+            if (savedCodec && Array.from(this.videoCodecSelect.options).some((o) => o.value === savedCodec)) {
+                this.videoCodecSelect.value = savedCodec;
+                // The encoder list depends on the codec; rebuild it to match.
+                this.populateEncoderDropdown(savedCodec);
+            }
+        }
+        // 2) Saved encoder
+        const stored = this.getPlayer()?.loadVideoSettings(this.udid, this.displayInfo);
+        const savedEncoder = stored?.encoderName;
+        if (savedEncoder && this.encoderSelectElement) {
+            const option = Array.from(this.encoderSelectElement.options).find((o) => o.value === savedEncoder);
+            if (option) {
+                this.encoderSelectElement.selectedIndex = option.index;
+            }
+        }
     }
 
     private fillInputsFromVideoSettings(videoSettings: VideoSettings, fitToScreen: boolean): void {
@@ -561,7 +602,7 @@ export class ConfigureScrcpy extends Modal {
         // Display dropdown
         const displayIdLabel = document.createElement('label');
         displayIdLabel.classList.add('label');
-        displayIdLabel.innerText = 'display:';
+        displayIdLabel.innerText = t('display');
         controls.appendChild(displayIdLabel);
         if (!this.displayIdSelectElement) {
             this.displayIdSelectElement = document.createElement('select');
@@ -575,7 +616,7 @@ export class ConfigureScrcpy extends Modal {
         // Video codec dropdown
         const videoCodecLabel = document.createElement('label');
         videoCodecLabel.classList.add('label');
-        videoCodecLabel.innerText = 'video codec:';
+        videoCodecLabel.innerText = t('video_codec');
         controls.appendChild(videoCodecLabel);
         const videoCodecSelect = (this.videoCodecSelect = document.createElement('select'));
         videoCodecSelect.classList.add('input');
@@ -586,7 +627,7 @@ export class ConfigureScrcpy extends Modal {
         // Encoder dropdown
         const encoderLabel = document.createElement('label');
         encoderLabel.classList.add('label');
-        encoderLabel.innerText = 'encoder:';
+        encoderLabel.innerText = t('encoder');
         controls.appendChild(encoderLabel);
         if (!this.encoderSelectElement) {
             this.encoderSelectElement = document.createElement('select');
@@ -597,7 +638,7 @@ export class ConfigureScrcpy extends Modal {
 
         // Max FPS slider
         this.appendBasicInput(controls, {
-            label: 'max fps',
+            label: t('max_fps'),
             id: 'maxFps',
             range: { min: 1, max: 60, step: 1 },
         });
@@ -606,7 +647,7 @@ export class ConfigureScrcpy extends Modal {
         // Audio codec dropdown
         const audioCodecLabel = document.createElement('label');
         audioCodecLabel.classList.add('label');
-        audioCodecLabel.innerText = 'audio codec:';
+        audioCodecLabel.innerText = t('audio_codec');
         controls.appendChild(audioCodecLabel);
         const audioCodecSelect = (this.audioCodecSelect = document.createElement('select'));
         audioCodecSelect.classList.add('input');
@@ -619,7 +660,7 @@ export class ConfigureScrcpy extends Modal {
         //   mic      — capture the device microphone
         const audioSourceLabel = document.createElement('label');
         audioSourceLabel.classList.add('label');
-        audioSourceLabel.innerText = 'audio source:';
+        audioSourceLabel.innerText = t('audio_source');
         controls.appendChild(audioSourceLabel);
         const audioSourceSelect = (this.audioSourceSelect = document.createElement('select'));
         audioSourceSelect.classList.add('input');
@@ -659,7 +700,7 @@ export class ConfigureScrcpy extends Modal {
         const captureOk = audioCaptureSupported(this.sdkInt);
         const audioEnabledLabel = document.createElement('label');
         audioEnabledLabel.classList.add('label');
-        audioEnabledLabel.innerText = 'enable audio:';
+        audioEnabledLabel.innerText = t('enable_audio');
         controls.appendChild(audioEnabledLabel);
         const audioEnabledCheckbox = (this.audioEnabledCheckbox = document.createElement('input'));
         audioEnabledCheckbox.type = 'checkbox';
@@ -686,14 +727,14 @@ export class ConfigureScrcpy extends Modal {
 
         // ── Overall bitrate (covers video + audio + control) ─────────────
         this.appendBasicInput(controls, {
-            label: 'bitrate',
+            label: t('bitrate'),
             id: 'bitrate',
-            range: { min: 524288, max: 8388608, step: 524288, formatter: Util.prettyBytes },
+            range: { min: 524288, max: 104857600, step: 524288, formatter: Util.prettyBytes },
         });
 
         // Set up the advanced toggle button (already in DOM from buildBody)
         const advancedToggle = this.bodyEl.querySelector('.modal-advanced-toggle') as HTMLButtonElement;
-        const advancedText = document.createTextNode('advanced ');
+        const advancedText = document.createTextNode(t('advanced') + ' ');
         advancedToggle.appendChild(advancedText);
         const advancedChevron = (this.advancedChevron = document.createElement('span'));
         advancedChevron.classList.add('chevron');
@@ -706,11 +747,11 @@ export class ConfigureScrcpy extends Modal {
         this.advancedSection = advancedSection;
 
         // I-Frame interval
-        this.appendBasicInput(advancedSection, { label: 'i-frame interval', id: 'iFrameInterval' });
+        this.appendBasicInput(advancedSection, { label: t('i_frame_interval'), id: 'iFrameInterval' });
 
         // Fit to screen toggle
         const fitLabel = document.createElement('label');
-        fitLabel.innerText = 'fit to screen';
+        fitLabel.innerText = t('fit_to_screen');
         fitLabel.classList.add('label');
         advancedSection.appendChild(fitLabel);
         const fitCheckbox = (this.fitToScreenCheckbox = document.createElement('input'));
@@ -722,31 +763,168 @@ export class ConfigureScrcpy extends Modal {
         advancedSection.appendChild(fitCheckbox);
 
         // Max width / Max height
-        this.appendBasicInput(advancedSection, { label: 'max width', id: 'maxWidth' });
-        this.appendBasicInput(advancedSection, { label: 'max height', id: 'maxHeight' });
+        this.appendBasicInput(advancedSection, { label: t('max_width'), id: 'maxWidth' });
+        this.appendBasicInput(advancedSection, { label: t('max_height'), id: 'maxHeight' });
 
         // Codec options
-        this.appendBasicInput(advancedSection, { label: 'codec options', id: 'codecOptions' });
+        this.appendBasicInput(advancedSection, { label: t('codec_options'), id: 'codecOptions' });
+
+        // ── Behavior options ──────────────────────────────────────────
+        // Turn screen off after connection
+        const turnScreenOffLabel = document.createElement('label');
+        turnScreenOffLabel.classList.add('label');
+        turnScreenOffLabel.innerText = t('turn_screen_off') + ':';
+        advancedSection.appendChild(turnScreenOffLabel);
+        this.turnScreenOffCheckbox = document.createElement('input');
+        this.turnScreenOffCheckbox.type = 'checkbox';
+        this.turnScreenOffCheckbox.id = turnScreenOffLabel.htmlFor = `turn_screen_off_${this.escapedUdid}`;
+        advancedSection.appendChild(this.turnScreenOffCheckbox);
+
+        // Lock device on disconnect
+        const lockOnDisconnectLabel = document.createElement('label');
+        lockOnDisconnectLabel.classList.add('label');
+        lockOnDisconnectLabel.innerText = t('lock_on_disconnect') + ':';
+        advancedSection.appendChild(lockOnDisconnectLabel);
+        this.lockOnDisconnectCheckbox = document.createElement('input');
+        this.lockOnDisconnectCheckbox.type = 'checkbox';
+        this.lockOnDisconnectCheckbox.id = lockOnDisconnectLabel.htmlFor = `lock_on_disconnect_${this.escapedUdid}`;
+        advancedSection.appendChild(this.lockOnDisconnectCheckbox);
+
+        // Keep device awake
+        const stayAwakeLabel = document.createElement('label');
+        stayAwakeLabel.classList.add('label');
+        stayAwakeLabel.innerText = t('stay_awake') + ':';
+        advancedSection.appendChild(stayAwakeLabel);
+        this.stayAwakeCheckbox = document.createElement('input');
+        this.stayAwakeCheckbox.type = 'checkbox';
+        this.stayAwakeCheckbox.id = stayAwakeLabel.htmlFor = `stay_awake_${this.escapedUdid}`;
+        advancedSection.appendChild(this.stayAwakeCheckbox);
+
+        // Keep control awake (wake lock)
+        const wakeLockLabel = document.createElement('label');
+        wakeLockLabel.classList.add('label');
+        wakeLockLabel.innerText = t('keep_screen_on') + ':';
+        advancedSection.appendChild(wakeLockLabel);
+        this.wakeLockCheckbox = document.createElement('input');
+        this.wakeLockCheckbox.type = 'checkbox';
+        this.wakeLockCheckbox.id = wakeLockLabel.htmlFor = `wake_lock_${this.escapedUdid}`;
+        advancedSection.appendChild(this.wakeLockCheckbox);
+
+        // Notifications on this device (page badge + browser/voice alerts).
+        // Written into the same behavior_<udid> object as the other toggles;
+        // NotificationCenter.isEnabledFor() reads it.
+        const notificationsLabel = document.createElement('label');
+        notificationsLabel.classList.add('label');
+        notificationsLabel.innerText = t('enable_notifications') + ':';
+        advancedSection.appendChild(notificationsLabel);
+        const notificationsCheckbox = (this.notificationsCheckbox = document.createElement('input'));
+        notificationsCheckbox.type = 'checkbox';
+        notificationsCheckbox.id = notificationsLabel.htmlFor = `notifications_${this.escapedUdid}`;
+        advancedSection.appendChild(notificationsCheckbox);
+        notificationsCheckbox.addEventListener('change', () => {
+            // Merge into the existing behavior object (the other toggles are
+            // only written on Save).
+            try {
+                const current = JSON.parse(localStorage.getItem(`behavior_${this.udid}`) || '{}') as Record<
+                    string,
+                    unknown
+                >;
+                current['notifications'] = notificationsCheckbox.checked;
+                localStorage.setItem(`behavior_${this.udid}`, JSON.stringify(current));
+            } catch {
+                localStorage.setItem(
+                    `behavior_${this.udid}`,
+                    JSON.stringify({ notifications: notificationsCheckbox.checked }),
+                );
+            }
+            if (notificationsCheckbox.checked && 'Notification' in window && Notification.permission === 'default') {
+                void Notification.requestPermission().catch(() => {});
+            }
+        });
+
+        // Cleanup on disconnect
+        const cleanupLabel = document.createElement('label');
+        cleanupLabel.classList.add('label');
+        cleanupLabel.innerText = t('cleanup_on_disconnect') + ':';
+        advancedSection.appendChild(cleanupLabel);
+        this.cleanupOnDisconnectCheckbox = document.createElement('input');
+        this.cleanupOnDisconnectCheckbox.type = 'checkbox';
+        this.cleanupOnDisconnectCheckbox.id = cleanupLabel.htmlFor = `cleanup_on_disconnect_${this.escapedUdid}`;
+        advancedSection.appendChild(this.cleanupOnDisconnectCheckbox);
+
+        // When cleanup checkbox changes, enable/disable dependent options
+        this.cleanupOnDisconnectCheckbox.addEventListener('change', () => {
+            const enabled = this.cleanupOnDisconnectCheckbox?.checked ?? true;
+            if (this.lockOnDisconnectCheckbox) {
+                this.lockOnDisconnectCheckbox.disabled = !enabled;
+                if (!enabled) this.lockOnDisconnectCheckbox.checked = false;
+            }
+            if (this.stayAwakeCheckbox) {
+                this.stayAwakeCheckbox.disabled = !enabled;
+                if (!enabled) this.stayAwakeCheckbox.checked = false;
+            }
+        });
+
+        // Load behavior settings from localStorage
+        const savedBehavior = JSON.parse(localStorage.getItem(`behavior_${this.udid}`) || '{}');
+        if (this.turnScreenOffCheckbox) {
+            this.turnScreenOffCheckbox.checked = !!savedBehavior.turnScreenOff;
+        }
+        if (this.lockOnDisconnectCheckbox) {
+            this.lockOnDisconnectCheckbox.checked = !!savedBehavior.lockOnDisconnect;
+        }
+        if (this.stayAwakeCheckbox) {
+            this.stayAwakeCheckbox.checked = !!savedBehavior.stayAwake;
+        }
+        if (this.wakeLockCheckbox) {
+            this.wakeLockCheckbox.checked = !!savedBehavior.wakeLock;
+        }
+        if (this.cleanupOnDisconnectCheckbox) {
+            this.cleanupOnDisconnectCheckbox.checked = savedBehavior.cleanupOnDisconnect !== false; // default true
+        }
+        if (this.notificationsCheckbox) {
+            // Default: on.
+            this.notificationsCheckbox.checked = savedBehavior.notifications !== false;
+        }
+
+        // Initialize dependent checkboxes' disabled state
+        const cleanupEnabled = this.cleanupOnDisconnectCheckbox?.checked ?? true;
+        if (this.lockOnDisconnectCheckbox) {
+            this.lockOnDisconnectCheckbox.disabled = !cleanupEnabled;
+        }
+        if (this.stayAwakeCheckbox) {
+            this.stayAwakeCheckbox.disabled = !cleanupEnabled;
+        }
+
+        // ── Lock-screen passwords moved out of this dialog: they now live on
+        //    the device list (PIN / pattern buttons above disconnect & wake),
+        //    so the pattern drawing window opens without nesting issues.
 
         // Settings row
         const settingsRow = document.createElement('div');
         settingsRow.classList.add('modal-settings');
 
+        const notificationsButton = document.createElement('button');
+        notificationsButton.classList.add('button');
+        notificationsButton.innerText = t('notifications_title');
+        notificationsButton.addEventListener('click', () => void this.openNotifications());
+        settingsRow.appendChild(notificationsButton);
+
         const resetSettingsButton = document.createElement('button');
         resetSettingsButton.classList.add('button');
-        resetSettingsButton.innerText = 'reset';
+        resetSettingsButton.innerText = t('reset');
         resetSettingsButton.addEventListener('click', this.resetSettings);
         settingsRow.appendChild(resetSettingsButton);
 
         const loadSettingsButton = document.createElement('button');
         loadSettingsButton.classList.add('button');
-        loadSettingsButton.innerText = 'load';
+        loadSettingsButton.innerText = t('load');
         loadSettingsButton.addEventListener('click', this.loadSettings);
         settingsRow.appendChild(loadSettingsButton);
 
         const saveSettingsButton = (this.saveSettingsButton = document.createElement('button'));
         saveSettingsButton.classList.add('button');
-        saveSettingsButton.innerText = 'save';
+        saveSettingsButton.innerText = t('save');
         saveSettingsButton.addEventListener('click', this.saveSettings);
         settingsRow.appendChild(saveSettingsButton);
 
@@ -762,7 +940,7 @@ export class ConfigureScrcpy extends Modal {
 
             const connectButton = (this.connectButton = document.createElement('button'));
             connectButton.classList.add('connect-btn');
-            connectButton.innerText = 'connect';
+        connectButton.innerText = t('connect');
             connectButton.disabled = true;
             connectButton.addEventListener('click', this.openStream);
             footer.appendChild(connectButton);
@@ -782,6 +960,16 @@ export class ConfigureScrcpy extends Modal {
         }
     };
 
+    private openNotifications = async (): Promise<void> => {
+        // Close this window first (user requirement: opening the notification
+        // window closes the other windows).
+        this.close();
+        const { NotificationModal } = await import('./NotificationModal');
+        const titleEl = this.dialog.querySelector('.modal-title');
+        const label = titleEl?.textContent || this.udid;
+        new NotificationModal(this.udid, this.deviceKind, label, this.params);
+    };
+
     private loadSettings = (): void => {
         this.updateVideoSettingsForPlayer();
     };
@@ -793,6 +981,13 @@ export class ConfigureScrcpy extends Modal {
             const fitToScreen = this.getFitToScreenValue();
             player.saveVideoSettings(this.udid, videoSettings, fitToScreen, this.displayInfo);
         }
+        // Persist the video decoder alongside the settings. VideoSettings has
+        // no videoCodec field, so keep it in localStorage and restore it in
+        // applyStoredSelections() when the dialog is next opened.
+        if (this.videoCodecSelect?.value) {
+            localStorage.setItem(`videoCodec_${this.udid}`, this.videoCodecSelect.value);
+        }
+
         // Persist the audio group (enable / source / codec) alongside video.
         // ConnectModal.connect-button flow loads these on click via AudioSettingsStore.
         if (this.audioEnabledCheckbox && this.audioSourceSelect && this.audioCodecSelect) {
@@ -802,9 +997,20 @@ export class ConfigureScrcpy extends Modal {
                 codec: this.audioCodecSelect.value,
             });
         }
+
+        // Save behavior settings to localStorage
+        const behaviorSettings = {
+            turnScreenOff: this.turnScreenOffCheckbox?.checked ?? false,
+            lockOnDisconnect: this.lockOnDisconnectCheckbox?.checked ?? false,
+            stayAwake: this.stayAwakeCheckbox?.checked ?? false,
+            wakeLock: this.wakeLockCheckbox?.checked ?? false,
+            cleanupOnDisconnect: this.cleanupOnDisconnectCheckbox?.checked ?? true,
+            notifications: this.notificationsCheckbox?.checked ?? true,
+        };
+        localStorage.setItem(`behavior_${this.udid}`, JSON.stringify(behaviorSettings));
         if (this.saveSettingsButton) {
             const original = this.saveSettingsButton.textContent;
-            this.saveSettingsButton.textContent = 'saved';
+            this.saveSettingsButton.textContent = t('saved');
             setTimeout(() => {
                 if (this.saveSettingsButton) {
                     this.saveSettingsButton.textContent = original;
@@ -820,7 +1026,7 @@ export class ConfigureScrcpy extends Modal {
             // A missing player name here is almost always the insecure-origin
             // case; returning silently is what made the connect button look
             // broken rather than blocked.
-            const notice = insecureOriginNotice(window);
+            const notice = insecureOriginNotice(window, document.documentElement.lang || 'en');
             if (!this.playerName && notice) {
                 this.setStatus(notice, 'error');
             }
@@ -836,6 +1042,11 @@ export class ConfigureScrcpy extends Modal {
         const audioSource =
             (this.audioSourceSelect?.value as AudioSource | undefined) ?? defaultAudioSourceForSdk(this.sdkInt);
         const encoderName = this.encoderSelectElement?.value || undefined;
+        const turnScreenOff = this.turnScreenOffCheckbox?.checked ?? false;
+        const lockOnDisconnect = this.lockOnDisconnectCheckbox?.checked ?? false;
+        const stayAwake = this.stayAwakeCheckbox?.checked ?? false;
+        const wakeLock = this.wakeLockCheckbox?.checked ?? false;
+        const cleanupOnDisconnect = this.cleanupOnDisconnectCheckbox?.checked ?? true;
 
         // Get the device label from the modal header before closing (close() removes dialog from DOM)
         const titleEl = this.dialog.querySelector('.modal-title');
@@ -857,6 +1068,11 @@ export class ConfigureScrcpy extends Modal {
             audioEnabled,
             audioSource,
             encoderName,
+            turnScreenOff,
+            lockOnDisconnect,
+            stayAwake,
+            wakeLock,
+            cleanupOnDisconnect,
         };
         const { ConnectModal } = await import('./ConnectModal');
         const deviceKind = this.tracker.getDescriptorByUdid(this.udid)?.deviceKind;

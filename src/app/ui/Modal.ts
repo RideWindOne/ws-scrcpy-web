@@ -10,6 +10,13 @@ export interface ModalOptions {
      * dismiss it is an explicit in-body action. Defaults to true.
      */
     dismissible?: boolean;
+    /**
+     * When false, the dialog is shown with show() instead of showModal(), so it
+     * can appear on top of another already-open modal dialog (browsers forbid
+     * nesting showModal() dialogs). No ::backdrop, no outside-click-to-close.
+     * Defaults to true.
+     */
+    modal?: boolean;
 }
 
 export abstract class Modal {
@@ -109,7 +116,11 @@ export abstract class Modal {
 
         // Show
         document.body.appendChild(this.dialog);
-        this.dialog.showModal();
+        if (this.options.modal === false) {
+            this.dialog.show();
+        } else {
+            this.dialog.showModal();
+        }
     }
 
     /** Required. Subclass fills the modal body content. */

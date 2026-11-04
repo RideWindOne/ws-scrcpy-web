@@ -3,6 +3,7 @@ import type GoogDeviceDescriptor from '../../../types/GoogDeviceDescriptor';
 import type { ParamsDeviceTracker } from '../../../types/ParamsDeviceTracker';
 import { BaseDeviceTracker } from '../../client/BaseDeviceTracker';
 import type { Tool } from '../../client/Tool';
+import { t } from '../../client/i18n';
 
 const tempPath = '/data/local/tmp';
 
@@ -34,7 +35,7 @@ export const FileListingClient: Tool = {
                     udid: descriptor.udid,
                     path: `${tempPath}/`,
                 },
-                'list files',
+                t('list_files'),
                 params,
             ),
         );

@@ -63,5 +63,33 @@ export function scrcpyOptionsFromQuery(params: URLSearchParams, scid: string): S
         options.videoCodecOptions = videoCodecOptions;
     }
 
+    // Behavior options
+    const turnScreenOff = params.get('turnScreenOff');
+    if (turnScreenOff === 'true') options.turnScreenOff = true;
+    else if (turnScreenOff === 'false') options.turnScreenOff = false;
+
+    const lockOnDisconnect = params.get('lockOnDisconnect');
+    const cleanupOnDisconnect = params.get('cleanupOnDisconnect');
+    const cleanup = cleanupOnDisconnect !== 'false'; // default true
+
+    if (lockOnDisconnect === 'true') {
+        options.lockOnDisconnect = true;
+        // Map to scrcpy-server's power_off_on_close, but only when cleanup is enabled
+        // (scrcpy-server requires cleanup for power_off_on_close to work)
+        if (cleanup) {
+            options.powerOffOnClose = true;
+        }
+    }
+    else if (lockOnDisconnect === 'false') {
+        options.lockOnDisconnect = false;
+    }
+
+    const stayAwake = params.get('stayAwake');
+    if (stayAwake === 'true') options.stayAwake = true;
+    else if (stayAwake === 'false') options.stayAwake = false;
+
+    if (cleanupOnDisconnect === 'false') options.cleanup = false;
+    else if (cleanupOnDisconnect === 'true') options.cleanup = true;
+
     return options;
 }

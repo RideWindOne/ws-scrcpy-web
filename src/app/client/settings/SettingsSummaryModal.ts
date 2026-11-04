@@ -1,4 +1,5 @@
 import { Modal } from '../../ui/Modal';
+import { t } from '../i18n';
 import type { Change } from './StagedSettingsStore';
 
 /**
@@ -24,7 +25,7 @@ export class SettingsSummaryModal extends Modal {
     }
 
     private constructor(changes: Change[], resolve: (v: boolean) => void) {
-        super({ title: 'Review changes' });
+        super({ title: t('review_changes') });
         this.changes = changes;
         this.resolveFn = resolve;
         // Called synchronously here, NOT deferred: unlike buildBody() below (which
@@ -61,14 +62,12 @@ export class SettingsSummaryModal extends Modal {
         if (this.changes.some((c) => c.id === 'webPort')) {
             const warning = document.createElement('p');
             warning.className = 'settings-summary__restart';
-            warning.textContent =
-                'Changing the HTTP port will restart the server. This page will reload on the new port ' +
-                'automatically — the app is not crashing.';
+            warning.textContent = t('summary_http_warn');
             container.appendChild(warning);
         } else if (this.changes.some((c) => c.id === 'httpsPort')) {
             const warning = document.createElement('p');
             warning.className = 'settings-summary__restart';
-            warning.textContent = 'Changing the HTTPS port will restart the server; any active streams will drop.';
+            warning.textContent = t('summary_https_warn');
             container.appendChild(warning);
         }
 
@@ -90,14 +89,14 @@ export class SettingsSummaryModal extends Modal {
         const cancel = document.createElement('button');
         cancel.type = 'button';
         cancel.className = 'modal-button';
-        cancel.textContent = 'Cancel';
+        cancel.textContent = t('cancel');
         cancel.addEventListener('click', () => this.resolveAndClose(false));
         footer.appendChild(cancel);
 
         const save = document.createElement('button');
         save.type = 'button';
         save.className = 'modal-button';
-        save.textContent = 'Save';
+        save.textContent = t('save');
         save.addEventListener('click', () => this.resolveAndClose(true));
         footer.appendChild(save);
 

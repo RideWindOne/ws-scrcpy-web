@@ -4,6 +4,7 @@ import { REMOTE_ADMIN_ID } from '../../common/remoteAdmin';
 import { sameOriginUrl } from '../sameOriginUrl';
 import { Modal } from '../ui/Modal';
 import { authClient, type Role } from './AuthClient';
+import { localizeServerError, t } from './i18n';
 import { announceAdminAccessLost, announceRemoteAdminChanged } from './adminAccess';
 import { ADMIN_UNREACHABLE_NOTE, adminApiReachable, canSeeSection } from './adminGate';
 import { DEPENDENCY_INSTALLED_EVENT } from './DependencyPanel';
@@ -48,6 +49,7 @@ import {
 } from './settings/tabs/ServerTab';
 import { buildServiceTab, refreshService } from './settings/tabs/ServiceTab';
 import { buildUpdatesTab, refreshUpdates } from './settings/tabs/UpdatesTab';
+import { buildContainerUpdatesTab } from './settings/tabs/ContainerUpdatesTab';
 import {
     applyUsersAdminUnreachable,
     applyUsersConfig,
@@ -109,9 +111,9 @@ function buildDockerNoteSection(
 
 export function buildDockerServiceNote(): HTMLElement {
     return buildDockerNoteSection(
-        'Service',
+        t('tab_service'),
         'service',
-        'service install not applicable — this instance runs in a container.',
+        t('service_install_not_applicable_container'),
     );
 }
 
@@ -132,9 +134,9 @@ export function buildDockerServiceNote(): HTMLElement {
  */
 export function buildDockerUpdatesNote(): HTMLElement {
     return buildDockerNoteSection(
-        'Updates',
+        t('tab_updates'),
         'updates',
-        'app updates not applicable — this instance runs in a container; pull a newer image to update.',
+        t('app_updates_not_applicable_container'),
     );
 }
 
@@ -188,9 +190,9 @@ export function buildAdminUnreachableSection(title: string, tabId: string): HTML
 
 export function buildDockerDependenciesNote(): HTMLElement {
     const section = buildDockerNoteSection(
-        'Dependencies',
+        t('tab_dependencies'),
         'dependencies',
-        'dependency updates not applicable — this instance runs in a container; pull a newer image to update.',
+        t('dependency_updates_not_applicable_container'),
     );
     section.dataset['settingsTab'] = 'dependencies';
     return section;
@@ -287,7 +289,10 @@ function saveFailureMessage(res: BatchResult, changes: Change[]): string {
     const applied =
         res.applied.length > 0 ? `applied ${res.applied.map((id) => labelFor(id, changes)).join(', ')}; ` : '';
     if (!failed.id) return `${applied}couldn't save the changes: ${failed.error}`;
-    return `${applied}couldn't save ${labelFor(failed.id, changes)}: ${failed.error}`;
+    // Localize server-side refusal texts that leak to the UI. Everything else
+    // keeps its server wording.
+    const error = localizeServerError(failed.error);
+    return `${applied}couldn't save ${labelFor(failed.id, changes)}: ${error}`;
 }
 
 /**
@@ -459,7 +464,7 @@ export class SettingsDirtyCloseModal extends Modal {
     }
 
     private constructor(resolve: (value: DirtyCloseChoice) => void) {
-        super({ title: 'Unsaved changes' });
+        super({ title: t('unsaved_changes') });
         this.resolveFn = resolve;
     }
 
@@ -468,7 +473,7 @@ export class SettingsDirtyCloseModal extends Modal {
         // this copy is constant and reads no instance field.
         const message = document.createElement('p');
         message.style.cssText = 'margin: 0 0 8px;';
-        message.textContent = 'you have changes that have not been saved yet.';
+        message.textContent = t('unsaved_changes_msg');
         container.appendChild(message);
     }
 
@@ -481,7 +486,7 @@ export class SettingsDirtyCloseModal extends Modal {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = choice === 'save' ? 'modal-button modal-button-primary' : 'modal-button';
-            btn.textContent = choice;
+            btn.textContent = choice === 'save' ? t('save_btn') : choice === 'discard' ? t('discard_btn') : t('cancel_btn');
             btn.addEventListener('click', () => this.resolveAndClose(choice));
             footer.appendChild(btn);
         }
@@ -663,7 +668,7 @@ export class SettingsModal extends Modal {
     };
 
     constructor(options?: { initialTab?: string }) {
-        super({ title: 'Settings' });
+        super({ title: t('settings') });
         // After super(), never during it: class-field initialisers run as super()
         // returns and would clobber anything assigned earlier (ES2022
         // useDefineForClassFields, the same hazard as `fillBody`). `fillBody` is
@@ -880,7 +885,7 @@ export class SettingsModal extends Modal {
         if (canSeeSection(this.role, 'users')) {
             tabs.push({
                 id: 'users',
-                label: 'Users',
+                label: t('tab_users'),
                 build: () => {
                     const el = buildUsersTab(ctx, store);
                     this.usersTabEl = el; // so the constructor can hand it the /api/config envelope
@@ -892,7 +897,7 @@ export class SettingsModal extends Modal {
         if (canSeeSection(this.role, 'embedOrigins')) {
             tabs.push({
                 id: 'embedding',
-                label: 'Embedding',
+                label: t('tab_embedding'),
                 build: () => {
                     const el = buildEmbeddingTab(ctx, store);
                     this.embeddingTabEl = el; // so the container branch can reword its https note
@@ -907,7 +912,7 @@ export class SettingsModal extends Modal {
         if (canSeeSection(this.role, 'updates')) {
             tabs.push({
                 id: 'updates',
-                label: 'Updates',
+                label: t('tab_updates'),
                 build: () => {
                     const el = buildUpdatesTab(ctx, store);
                     this.updatesTabEl = el; // so the constructor can trigger its refresh post-probe
@@ -918,7 +923,7 @@ export class SettingsModal extends Modal {
         if (canSeeSection(this.role, 'service')) {
             tabs.push({
                 id: 'service',
-                label: 'Service',
+                label: t('tab_service'),
                 build: () => {
                     const el = buildServiceTab(ctx, store);
                     this.serviceTabEl = el; // so the constructor can trigger its refresh post-probe
@@ -931,7 +936,7 @@ export class SettingsModal extends Modal {
         if (canSeeSection(this.role, 'dependencies')) {
             tabs.push({
                 id: 'dependencies',
-                label: 'Dependencies',
+                label: t('tab_dependencies'),
                 build: () => {
                     const el = buildDependenciesTab(ctx, store);
                     this.dependenciesTabEl = el; // so the constructor can start it post-probe
@@ -942,7 +947,7 @@ export class SettingsModal extends Modal {
         // Always built (it contains the user-level reset row).
         tabs.push({
             id: 'server',
-            label: 'Server',
+            label: t('tab_server'),
             build: () => {
                 const el = buildServerTab(ctx, store);
                 this.serverTabEl = el; // so the constructor can trigger its refresh
@@ -955,7 +960,7 @@ export class SettingsModal extends Modal {
         if (canSeeSection(this.role, 'localHttps')) {
             tabs.push({
                 id: 'local-https',
-                label: 'Local HTTPS',
+                label: t('tab_local_https'),
                 build: () => {
                     const el = buildLocalHttpsTab(ctx);
                     this.localHttpsTabEl = el; // so the constructor can decide what it shows
@@ -1011,7 +1016,7 @@ export class SettingsModal extends Modal {
         // version beside it.
         save.style.marginLeft = 'auto';
         save.className = 'settings-btn settings-btn-primary settings-save';
-        save.textContent = 'save';
+        save.textContent = t('save_btn');
         // Starts disabled: a freshly opened dialog has staged nothing, and the
         // tabs' baselines are not even known yet (the ports and the update
         // settings arrive on the refreshes the constructor drives).
@@ -1218,7 +1223,7 @@ export class SettingsModal extends Modal {
             const body = this.tabStrip?.body(id);
             if (body) destroyTabAlerts(body);
         }
-        this.tabStrip?.replaceTabBody('updates', buildDockerUpdatesNote());
+        this.tabStrip?.replaceTabBody('updates', buildContainerUpdatesTab());
         this.tabStrip?.replaceTabBody('service', buildDockerServiceNote());
         this.tabStrip?.replaceTabBody('dependencies', buildDockerDependenciesNote());
         this.updatesTabEl = null;
@@ -1258,10 +1263,10 @@ export class SettingsModal extends Modal {
      */
     private applyAdminUnreachableNotes(): void {
         const notes: Array<[string, string]> = [
-            ['updates', 'Updates'],
-            ['service', 'Service'],
-            ['dependencies', 'Dependencies'],
-            ['local-https', 'Local HTTPS'],
+            ['updates', t('tab_updates')],
+            ['service', t('tab_service')],
+            ['dependencies', t('tab_dependencies')],
+            ['local-https', t('tab_local_https')],
         ];
         for (const [id, title] of notes) {
             const body = this.tabStrip?.body(id);

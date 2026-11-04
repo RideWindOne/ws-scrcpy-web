@@ -257,10 +257,22 @@ export class ScrcpyConnection extends Mw {
         // 4. Send metadata to browser
         this.sendChannel(ChannelId.METADATA, Buffer.from(JSON.stringify(metadata)));
 
-        // 5. Start forwarding
+        // 5. Apply behavior options: turn screen off if requested
+        if (options.turnScreenOff && this.controlSocket && !this.controlSocket.destroyed) {
+            try {
+                // Send SET_SCREEN_POWER_MODE command (type=10, mode=0=off)
+                const powerOffMsg = Buffer.from([0x0A, 0x00]);
+                this.controlSocket.write(powerOffMsg);
+                log.info(`${this.serial}: turned screen off via scrcpy control channel`);
+            } catch (err) {
+                log.warn(`${this.serial}: failed to turn screen off: ${(err as Error).message}`);
+            }
+        }
+
+        // 6. Start forwarding
         this.startForwarding();
 
-        // 6. #703 watchdog. A black screen is silent by nature: the session is
+        // 7. #703 watchdog. A black screen is silent by nature: the session is
         //    up, the sockets are connected, and nothing says the picture never
         //    started. One shot — a stall is a state, not an event, and
         //    repeating it every tick would drown the session it describes.
@@ -870,6 +882,8 @@ export class ScrcpyConnection extends Mw {
         liveStreams.remove(this);
         this.stopClosingWatch?.();
         log.info(`Releasing session for ${this.serial}`);
+
+        // Note: lockOnDisconnect is now handled by scrcpy-server's power_off_on_close parameter
         // #703: written on EVERY session, not only broken ones. A healthy
         // summary is what makes a broken one legible — without a normal
         // reading to compare against, "config=0" is just a number.
@@ -913,6 +927,11 @@ export class ScrcpyConnection extends Mw {
         this.videoSocket?.destroy();
         this.audioSocket?.destroy();
         this.controlSocket?.destroy();
+
+        // Lock device on disconnect is now handled by scrcpy-server's power_off_on_close parameter
+        // Previously we sent `input keyevent 26` via ADB, but that conflicted with power_off_on_close:
+        // scrcpy-server turns the screen off, then our ADB power key turns it back on.
+        // The scrcpy-server approach is more reliable and works even when the screen was already off.
 
         if (this.serverProcess && !this.serverProcess.killed) {
             this.serverProcess.kill();

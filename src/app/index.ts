@@ -4,6 +4,14 @@ import '../style/bookmark-reminder.css';
 import '../style/dependencies.css';
 import '../style/first-run-banner.css';
 import '../style/home.css';
+// DebugOverlay must be installed as early as possible: it captures
+// window.onerror / unhandledrejection and renders a page-visible log panel,
+// which is the only way to diagnose old-WebView failures (e.g. the fnOS
+// client's embedded browser) where DevTools are unavailable.
+import { installDebugOverlay, exposeGlobalDebug, setDebugOverlayVisible, dbg } from './client/DebugOverlay';
+installDebugOverlay();
+exposeGlobalDebug();
+import { settingsService } from './client/SettingsService';
 import type { AppConfigEnvelope, FirstRunStatus } from '../common/ConfigEvents';
 import type { ServiceStatusResponse } from '../common/ServiceEvents';
 import { AdminScopeBanner } from './client/AdminScopeBanner';
@@ -15,6 +23,7 @@ import { DependencyAlertCard } from './client/DependencyAlertCard';
 import { startEmbedRequestWatch, stopEmbedRequestWatch } from './client/EmbedRequestPrompt';
 import { FirstRunBanner } from './client/FirstRunBanner';
 import { HostTracker } from './client/HostTracker';
+import { initI18n, createLanguageToggle } from './client/i18n';
 import { NetworkDiscoveryPanel } from './client/NetworkDiscoveryPanel';
 import { createSettingsHeader } from './client/SettingsHeader';
 import { isElevationDeclined, reasonToUserMessage } from './client/serviceFailureMessage';
@@ -224,6 +233,7 @@ function maybeShowBookmarkReminder(globallyDismissed: boolean, dismissedFor: num
 
 // Initialize theme immediately to prevent flash of wrong colors
 initTheme();
+dbg('index.ts 模块加载完成，等待 window.onload');
 
 /**
  * Origins allowed to drive the theme over postMessage.
@@ -243,12 +253,16 @@ installThemeEmbedListener({ allowedOrigins: () => themeEmbedOrigins });
 notifyThemeReady();
 
 window.onload = async (): Promise<void> => {
+    dbg('window.onload 开始');
     // Apply the stored theme + warm the global settings cache (iconSize,
     // scanSubnets the settings modals read).
     // applyStoredTheme awaits loadGlobal internally; initTheme already did the
     // synchronous OS first paint at module-eval, and the .catch keeps a boot-time
     // /api/settings failure from rejecting onload.
     await applyStoredTheme().catch((e) => console.error('[boot] applyStoredTheme failed', e));
+    // Settings are now warm (loadGlobal ran inside applyStoredTheme): apply the
+    // stored debug-overlay visibility. Defaults to hidden when unset.
+    setDebugOverlayVisible(settingsService.isDebugOverlayEnabled());
 
     // WebCodecs player must be registered so ConnectModal can find it
     const { WebCodecsPlayer } = await import('./player/WebCodecsPlayer');
@@ -260,19 +274,25 @@ window.onload = async (): Promise<void> => {
     // ShellModal / ListFilesModal (see DeviceTracker.buildDeviceRow).
     const { ShellClient } = await import('./googDevice/client/ShellClient');
     tools.push(ShellClient);
+    dbg('ShellClient 注册完成');
 
     const { FileListingClient } = await import('./googDevice/client/FileListingClient');
     tools.push(FileListingClient);
+    dbg('FileListingClient 注册完成');
 
     if (tools.length) {
         const { DeviceTracker } = await import('./googDevice/client/DeviceTracker');
         tools.forEach((tool) => {
             DeviceTracker.registerTool(tool);
         });
+        dbg('DeviceTracker 初始化完成');
     }
 
     document.body.appendChild(createSettingsHeader());
     document.body.appendChild(createThemeToggle());
+    initI18n();
+    document.body.appendChild(createLanguageToggle());
+    dbg('UI 控件挂载完成（设置/主题/语言）');
 
     // The two CONDITIONAL top-bar controls share one right-anchored flex row:
     // the app-update pill, and the dependency badge appended below once its
@@ -330,14 +350,17 @@ window.onload = async (): Promise<void> => {
     });
 
     maybeShowFirstRunModal();
+    dbg('FirstRunModal 处理完成');
 
     const devicesDiv = document.createElement('div');
     devicesDiv.id = 'devices';
     devicesDiv.className = 'table-wrapper';
     pageContainer.appendChild(devicesDiv);
+    dbg('devices 容器已挂载');
 
     const discoveryPanel = new NetworkDiscoveryPanel();
     pageContainer.appendChild(discoveryPanel.getElement());
+    dbg('NetworkDiscoveryPanel 已挂载');
 
     // The panel itself now lives in Settings → Dependencies; what stays here is
     // an alert that appears only when something needs updating. All three of its
@@ -371,6 +394,7 @@ window.onload = async (): Promise<void> => {
         // wherever it is mounted, so the 15s /api/dependencies poll is released
         // on page teardown exactly as before.
         topBarIndicators.appendChild(card.getElement());
+        dbg('依赖卡片处理完成');
     })();
 
     // §36: DependencyAlertCard + FirstRunBanner poll on intervals for the page
@@ -389,7 +413,9 @@ window.onload = async (): Promise<void> => {
         stopEmbedRequestWatch();
     });
 
+    dbg('onload 主体流程完成，准备启动 HostTracker');
     HostTracker.start();
+    dbg('HostTracker.start 已调用');
     // §32 Part 5: the browser-side reachability overlay was replaced by
     // the launcher's --upgrade-server subcommand, which serves a static
     // "updating, please wait..." page on the same port during the upgrade

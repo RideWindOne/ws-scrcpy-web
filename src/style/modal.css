@@ -359,7 +359,7 @@ dialog.modal .modal-advanced {
 }
 
 dialog.modal .modal-advanced.expanded {
-    max-height: 300px;
+    max-height: 600px;
     opacity: 1;
     margin-top: 0.5rem;
 }
@@ -486,8 +486,11 @@ dialog.modal .connect-btn:disabled {
 /* ── Shell modal overrides ── */
 /* biome-ignore lint/style/noDescendingSpecificity: no background here; the earlier higher-specificity rule sets background only — disjoint properties, see the audit note at the top */
 dialog.modal.shell-modal .modal-frame {
-    width: clamp(500px, 90vw, 1600px);
-    max-height: 90vh;
+    /* 500px floor was wider than a phone viewport, so the terminal laid out
+       wider than the screen and long log lines got clipped at the left edge.
+       Phones get ~96vw, desktops keep the 1600px ceiling. */
+    width: clamp(320px, 96vw, 1600px);
+    max-height: calc(100vh - 2rem);
 }
 
 dialog.modal .shell-warning {
@@ -501,7 +504,7 @@ dialog.modal .shell-warning {
 dialog.modal.shell-modal .modal-body {
     padding: 0;
     background: #000;
-    min-height: 600px;
+    min-height: clamp(240px, 45vh, 600px);
     position: relative;
     overflow: hidden;
 }
@@ -567,7 +570,9 @@ dialog.list-files-modal .modal-body {
    modals (AdminConfirmModal etc.) stay narrow. */
 /* biome-ignore lint/style/noDescendingSpecificity: no background here; the earlier higher-specificity rule sets background only — disjoint properties, see the audit note at the top */
 dialog.settings-modal .modal-frame {
-    width: clamp(460px, 66vw, 820px);
+    /* 92vw floor on phones (460px was wider than a 420-460px phone viewport,
+       clipping the last tab / right edge); desktop keeps the 820px ceiling. */
+    width: clamp(320px, 92vw, 820px);
     /* 95vh (not the base 80vh / prior 85vh): the App + Updates + Service
        sections together are tall enough that 85vh forced an inner scrollbar on
        smaller viewports. 95vh leaves a ~2.5% margin top/bottom so the frame
@@ -587,6 +592,9 @@ dialog.settings-modal .settings-tabs {
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
+    /* Fallback on very narrow viewports: let the tab strip scroll horizontally
+       instead of clipping the last tab label. */
+    overflow-x: auto;
     border-bottom: 1px solid var(--modal-divider);
     margin-bottom: 0.5rem;
 }
@@ -1236,5 +1244,255 @@ dialog.service-operation-modal .modal-body {
 @keyframes service-op-spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+/* ── Unlock / PIN / pattern-editor modals: narrow-screen layout ──
+ * These open on phone browsers too (device-list buttons, toolbar unlock), so
+ * the frame caps at a small fixed width on desktop and 94vw on phones, and the
+ * pattern grid's 264px canvas keeps fitting by trimming body padding. */
+dialog.unlock-modal .modal-frame,
+dialog.pin-editor-modal .modal-frame,
+dialog.pattern-editor-modal .modal-frame {
+    width: min(420px, 94vw);
+    /* Content (size selector + 264px grid + status + cache + buttons) can
+       exceed 80vh on short phone viewports; let the frame scroll instead of
+       clipping the bottom action row. */
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+/* ── scrcpy parameter sheet (more settings / 更多设置): phone-safe width
+ * and scrolling so the long encoder/bitrate rows never overflow. */
+dialog.scrcpy-config-modal .modal-frame {
+    width: min(92vw, 700px);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+/* ── Shell close-confirm overrides: phone-safe width + centered buttons. */
+dialog.shell-close-confirm-modal .modal-frame {
+    width: min(420px, 94vw);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+/* ── Notification viewer modal ─────────────────────────────────────────── */
+dialog.notification-modal .modal-frame {
+    width: min(480px, 94vw);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+/* Unread-notification badge — a round toolbar button left of the language
+   toggle, mirroring .theme-toggle / .settings-header (36px circle, default
+   surface, white icon). The unread count sits as a red corner badge. */
+.notify-badge {
+    position: fixed;
+    top: 12px;
+    right: 144px; /* 100px (language toggle) + 36px + 8px gap */
+    z-index: 100;
+    background: var(--device-list-default-color);
+    border: 1px solid var(--device-border-color);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-color);
+    transition: background-color 0.15s;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.notify-badge:hover {
+    background: var(--device-list-hover-color);
+}
+
+.notify-badge-active {
+    border-color: var(--accent-color, #0078d4);
+}
+
+/* Icon exactly centered: absolute fill + flex, no manual offsets. */
+.notify-badge-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notify-badge-label svg {
+    display: block;
+}
+
+.notify-badge-count {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    line-height: 16px;
+    text-align: center;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #e0392d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    box-sizing: border-box;
+}
+
+dialog.notification-modal .modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notify-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.notify-picker-count {
+    font-size: 12px;
+    color: var(--text-color-light, #888);
+}
+
+.notify-app-list {
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.notify-app-list .input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.notify-app-list-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.notify-app-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    cursor: pointer;
+    word-break: break-all;
+    font-size: 13px;
+}
+
+.notify-app-name {
+    flex: 1;
+}
+
+.notify-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.notify-empty,
+.notify-redacted-hint {
+    color: var(--text-color-light, #888);
+    font-size: 13px;
+    padding: 8px 2px;
+}
+
+.notify-redacted-hint {
+    color: var(--warning-color, #c90);
+}
+
+.notify-card {
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.notify-card-pkg {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-color-light, #888);
+    word-break: break-all;
+}
+
+.notify-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.notify-card-text {
+    font-size: 13px;
+    color: var(--text-color, #ddd);
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.notify-card-time {
+    font-size: 11px;
+    color: var(--text-color-light, #888);
+}
+
+.notify-reply-btn {
+    align-self: flex-start;
+    margin-top: 4px;
+}
+
+@media (max-width: 380px) {
+    dialog.unlock-modal .modal-body,
+    dialog.pin-editor-modal .modal-body,
+    dialog.pattern-editor-modal .modal-body {
+        padding: 8px;
+    }
+}
+
+/*
+ * Narrow viewports: a settings row is a two-column grid (18rem labels +
+ * 1fr controls). On phones the controls column shrinks to ~100px, squeezing
+ * right-side buttons into one-character vertical text and clipping labels.
+ * Stack every row (settings items, Dependencies section body, ConfigureScrcpy
+ * controls) — label on top, controls below, full width — so buttons keep
+ * their natural width and wrap instead of collapsing.
+ */
+@media (max-width: 640px) {
+    dialog.settings-modal .settings-item,
+    dialog.settings-modal .settings-section-body,
+    dialog.modal .modal-controls {
+        grid-template-columns: 1fr;
+        gap: 0.4rem 0;
+    }
+
+    dialog.settings-modal .settings-label,
+    dialog.settings-modal .settings-control,
+    dialog.modal .modal-controls .control-label,
+    dialog.modal .modal-controls .control-input,
+    dialog.modal .modal-controls > * {
+        grid-column: auto;
+        min-width: 0;
+    }
+
+    dialog.settings-modal .settings-control {
+        flex-wrap: wrap;
     }
 }

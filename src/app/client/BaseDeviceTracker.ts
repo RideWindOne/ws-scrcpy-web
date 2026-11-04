@@ -8,6 +8,7 @@ import type { Message } from '../../types/Message';
 import type { ParamsDeviceTracker } from '../../types/ParamsDeviceTracker';
 import Util from '../Util';
 import { html } from '../ui/HtmlTag';
+import { t } from './i18n';
 import { isInstallHandoffInProgress } from './installHandoffPoll';
 import { ManagerClient } from './ManagerClient';
 import {
@@ -18,6 +19,7 @@ import {
     type TokenProbe,
 } from './staleTokenReload';
 import type { Tool } from './Tool';
+import { dbg } from './DebugOverlay';
 
 const TAG = '[BaseDeviceTracker]';
 
@@ -178,12 +180,13 @@ export abstract class BaseDeviceTracker<DD extends BaseDeviceDescriptor, TE exte
         const context = await this.fetchRowContext();
 
         if (data.length === 0) {
+            dbg('设备列表刷新：0 台设备（descriptors 为空）', 'warn');
             this.removeAllDeviceRows(block);
             this.lastRenderedByUdid.clear();
             if (!block.querySelector('.empty-state-card')) {
                 const empty = document.createElement('div');
                 empty.className = 'empty-state-card';
-                empty.textContent = 'No devices connected.';
+                empty.textContent = t('no_devices');
                 block.appendChild(empty);
             }
             return;
@@ -191,6 +194,7 @@ export abstract class BaseDeviceTracker<DD extends BaseDeviceDescriptor, TE exte
 
         // Devices present — drop any empty-state card.
         block.querySelector('.empty-state-card')?.remove();
+        dbg('设备列表刷新：' + data.length + ' 台设备待渲染');
 
         const desiredUdids = new Set(data.map((d) => d.udid));
 
@@ -299,7 +303,12 @@ export abstract class BaseDeviceTracker<DD extends BaseDeviceDescriptor, TE exte
             nameEl.id = nameBlockId;
             nameEl.className = 'tracker-name';
         }
-        nameEl.innerText = name;
+        // Translate "Connected Devices" prefix
+        let displayName = name;
+        if (name.startsWith('Connected Devices')) {
+            displayName = name.replace('Connected Devices', t('connected_devices'));
+        }
+        nameEl.innerText = displayName;
         parent.insertBefore(nameEl, parent.firstChild);
     }
 

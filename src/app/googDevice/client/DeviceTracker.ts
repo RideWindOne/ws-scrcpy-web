@@ -16,6 +16,7 @@ import { html } from '../../ui/HtmlTag';
 import SvgImage from '../../ui/SvgImage';
 import { bindDeviceSettings } from './deviceSettingsBinding';
 import { StreamClientScrcpy } from './StreamClientScrcpy';
+import { t } from '../../client/i18n';
 
 // ---------- capability gating ----------
 
@@ -102,6 +103,21 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
         DeviceTracker.instancesByUrl.set(directUrl, this);
         this.buildDeviceTable();
         this.openNewConnection();
+        // Page-wide notification monitor (unread badge, browser + voice alerts).
+        void import('./NotificationCenter').then(({ NotificationCenter }) => {
+            NotificationCenter.getInstance().start(this);
+        });
+    }
+
+    /** Connection host for this tracker — used by the notification center to
+     * open the device's connect flow. */
+    public getConnectionHost(): { secure: boolean | undefined; hostname: string | undefined; port: number | undefined; pathname?: string | undefined } {
+        return {
+            secure: this.params.secure,
+            hostname: this.params.hostname,
+            port: this.params.port,
+            pathname: this.params.pathname,
+        };
     }
 
     protected onSocketOpen(): void {
@@ -160,7 +176,7 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
                     udid,
                     player: decodeURIComponent(playerCodeName),
                 },
-                decodeURIComponent(playerFullName),
+                decodeURIComponent(playerFullName) === 'connect' ? t('connect') : decodeURIComponent(playerFullName),
                 this.params,
             );
             item.appendChild(link);
@@ -191,11 +207,11 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
         const isNetworkDevice = device.udid.includes(':');
         const row = html`<div class="device ${isActive ? 'active' : 'not-active'}">
             <table class="device-info">
-                <tr class="device-name-row"><td class="device-label">Device Name:</td><td></td></tr>
-                <tr><td class="device-label">Model:</td><td>${deviceName}</td></tr>
-                <tr><td class="device-label">Device ID:</td><td class="device-serial">${device.udid}</td></tr>
-                <tr><td class="device-label">Android:</td><td>${(device['ro.build.version.release'] || '').split('.')[0]}</td></tr>
-                <tr><td class="device-label">SDK:</td><td>${device['ro.build.version.sdk']}</td></tr>
+                <tr class="device-name-row"><td class="device-label">${t('device_name')}:</td><td></td></tr>
+                <tr><td class="device-label">${t('model')}:</td><td>${deviceName}</td></tr>
+                <tr><td class="device-label">${t('device_id')}:</td><td class="device-serial">${device.udid}</td></tr>
+                <tr><td class="device-label">${t('android')}:</td><td>${(device['ro.build.version.release'] || '').split('.')[0]}</td></tr>
+                <tr><td class="device-label">${t('sdk')}:</td><td>${device['ro.build.version.sdk']}</td></tr>
             </table>
             <div id="${overlayId}" class="services"></div>
             <div class="device-actions"></div>
@@ -228,6 +244,9 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
             // borders sit at element edges (integer pixels), so they render
             // crisply unlike 1px grid-track dividers which can land on sub-
             // pixel positions and anti-alias to a thicker/dimmer line.
+            // Lock-screen passwords (PIN + pattern) are managed from the stream
+            // toolbar's "输入密码" dialog, so the device list keeps only
+            // disconnect + sleep/wake.
             const disconnectCell = document.createElement('div');
             disconnectCell.className = 'action-cell action-cell-disconnect';
             actionsRow.appendChild(disconnectCell);
@@ -236,7 +255,7 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
             if (isNetworkDevice) {
                 const disconnectBtn = document.createElement('button');
                 disconnectBtn.className = 'disconnect-btn';
-                disconnectBtn.textContent = 'disconnect';
+                disconnectBtn.textContent = t('disconnect');
                 disconnectBtn.addEventListener('click', async () => {
                     disconnectBtn.disabled = true;
                     try {
@@ -263,12 +282,12 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
 
             if (screenState === 'unknown') {
                 sleepBtn.className = 'sleep-wake-btn state-unknown';
-                sleepBtn.textContent = 'checking...';
+                sleepBtn.textContent = t('checking');
                 sleepBtn.disabled = true;
             } else {
                 const isAwake = screenState === 'awake';
                 sleepBtn.className = `sleep-wake-btn ${isAwake ? 'state-on' : 'state-off'}`;
-                sleepBtn.textContent = isAwake ? 'turn off' : 'turn on';
+                sleepBtn.textContent = isAwake ? t('turn_off') : t('turn_on');
                 sleepBtn.dataset['awake'] = String(isAwake);
             }
 
@@ -288,11 +307,11 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
                     });
                     const result = await res.json();
                     sleepBtn.dataset['awake'] = String(result.awake);
-                    sleepBtn.textContent = result.awake ? 'turn off' : 'turn on';
+                    sleepBtn.textContent = result.awake ? t('turn_off') : t('turn_on');
                     sleepBtn.className = `sleep-wake-btn ${result.awake ? 'state-on' : 'state-off'}`;
                 } catch {
                     sleepBtn.dataset['awake'] = String(isAwake);
-                    sleepBtn.textContent = isAwake ? 'turn off' : 'turn on';
+                    sleepBtn.textContent = isAwake ? t('turn_off') : t('turn_on');
                     sleepBtn.className = `sleep-wake-btn ${isAwake ? 'state-on' : 'state-off'}`;
                 }
             });
@@ -337,7 +356,7 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
         // so at http://<lan-ip>:8000 — the documented way to reach the Docker
         // image — the connect cell was simply absent and nothing said why.
         if (isActive && DeviceTracker.CREATE_DIRECT_LINKS && StreamClientScrcpy.getPlayers().length === 0) {
-            const notice = insecureOriginNotice(window);
+            const notice = insecureOriginNotice(window, document.documentElement.lang || 'en');
             if (notice) {
                 const noticeEl = document.createElement('div');
                 noticeEl.classList.add('insecure-origin-notice');
@@ -440,6 +459,21 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
                 const nameEl = link.closest('.device')?.querySelector('.device-name-text');
                 const label = nameEl?.textContent || device['ro.product.model'] || device.udid;
 
+                // Read saved behavior settings from localStorage
+                const savedBehavior = JSON.parse(localStorage.getItem(`behavior_${device.udid}`) || '{}');
+                if (typeof savedBehavior.turnScreenOff === 'boolean') {
+                    params.turnScreenOff = savedBehavior.turnScreenOff;
+                }
+                if (typeof savedBehavior.lockOnDisconnect === 'boolean') {
+                    params.lockOnDisconnect = savedBehavior.lockOnDisconnect;
+                }
+                if (typeof savedBehavior.stayAwake === 'boolean') {
+                    params.stayAwake = savedBehavior.stayAwake;
+                }
+                if (typeof savedBehavior.cleanupOnDisconnect === 'boolean') {
+                    params.cleanupOnDisconnect = savedBehavior.cleanupOnDisconnect;
+                }
+
                 // Create player and open ConnectModal with auto-detected settings
                 const playerClass = StreamClientScrcpy.getPlayers()[0];
                 if (!playerClass) return;
@@ -498,14 +532,14 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
 
             const span = document.createElement('span');
             span.className = label ? 'device-name-text' : 'device-name-text unnamed';
-            span.textContent = label || 'Unnamed Device';
+            span.textContent = label || t('unnamed_device');
             cell.appendChild(span);
 
             const pencilBtn = document.createElement('button');
             pencilBtn.className = 'device-name-edit-btn';
             pencilBtn.innerHTML =
                 '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
-            pencilBtn.title = 'Edit device name';
+            pencilBtn.title = t('device_edit_name');
             pencilBtn.addEventListener('click', () => renderEdit(label));
             cell.appendChild(pencilBtn);
         };
@@ -517,7 +551,7 @@ export class DeviceTracker extends BaseDeviceTracker<GoogDeviceDescriptor, never
             input.type = 'text';
             input.className = 'device-name-input';
             input.value = currentLabel;
-            input.placeholder = 'Name this device...';
+            input.placeholder = t('device_name_placeholder');
             cell.appendChild(input);
 
             const saveBtn = document.createElement('button');

@@ -5,6 +5,7 @@ import { reasonToUserMessage } from '../../serviceFailureMessage';
 import { runUpgradingHandoff } from '../../UpgradingOverlay';
 import { classifyFailedApply, LostApplyWatch } from '../../updateApplyOutcome';
 import type { StagedSettingsStore } from '../StagedSettingsStore';
+import { t } from '../../i18n';
 import {
     buildDynamicLabelRow,
     buildItem,
@@ -70,19 +71,19 @@ interface UpdatesBaseline {
  * refused for an id the server does not allow.
  */
 function registerUpdatesFields(store: StagedSettingsStore, initial: UpdatesBaseline): void {
-    store.register({ id: CHANNEL_ID, label: 'Update channel', initial: initial.channel });
+    store.register({ id: CHANNEL_ID, label: t('update_channel'), initial: initial.channel });
     store.register({
         id: AUTO_UPDATE_ID,
-        label: 'Automatic updates',
+        label: t('auto_download_updates'),
         initial: initial.autoUpdate,
         format: (v) => (v ? 'on' : 'off'),
     });
     store.register({
         id: INTERVAL_ID,
-        label: 'Check interval (minutes)',
+        label: t('check_interval'),
         initial: initial.updateCheckIntervalMinutes,
     });
-    store.register({ id: OWNER_ID, label: 'GitHub owner', initial: initial.githubOwner });
+    store.register({ id: OWNER_ID, label: t('github_owner'), initial: initial.githubOwner });
 }
 
 /**
@@ -121,14 +122,14 @@ const refreshers = new WeakMap<HTMLElement, () => Promise<void>>();
  */
 export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HTMLElement {
     // `body` is the tab's card: everything below renders into it, one item per setting.
-    const { section, card: body } = buildSection('Updates');
+    const { section, card: body } = buildSection(t('tab_updates'));
     // The tab's one status line. Built now, but below the card all the same:
     // `body` is the section's only card, and only its contents are redrawn.
     const tabAlert = buildTabAlert(section);
     const placeholder = document.createElement('p');
     placeholder.className = 'settings-status';
     placeholder.style.gridColumn = '1 / -1';
-    placeholder.textContent = 'loading…';
+    placeholder.textContent = t('loading');
     body.appendChild(buildItem(placeholder));
 
     // Registered with null baselines because the real values are not knowable
@@ -200,7 +201,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         const retryBtn = document.createElement('button');
         retryBtn.type = 'button';
         retryBtn.className = 'settings-btn';
-        retryBtn.textContent = 'retry';
+        retryBtn.textContent = t('retry');
         retryBtn.addEventListener('click', () => {
             void runRefresh();
         });
@@ -244,7 +245,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         auto.addEventListener('change', () => {
             store.set(AUTO_UPDATE_ID, auto.checked);
         });
-        body.appendChild(buildItem(buildRow('automatically download updates', auto)));
+        body.appendChild(buildItem(buildRow(t('auto_download_updates'), auto)));
 
         // Row 2: check interval. STAGED, behind the range guard below.
         const interval = document.createElement('input');
@@ -272,7 +273,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         });
         const intervalNote = buildFieldNote();
         intervalNote.setAttribute('data-updates-interval-note', '');
-        body.appendChild(buildItem(buildRow('check interval (minutes)', interval), intervalNote));
+        body.appendChild(buildItem(buildRow(t('check_interval'), interval), intervalNote));
 
         // Row 3: channel radios. STAGED.
         const channelFrag = document.createDocumentFragment();
@@ -289,7 +290,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
             }
         });
         stableLabel.appendChild(stableRadio);
-        stableLabel.appendChild(document.createTextNode('stable'));
+        stableLabel.appendChild(document.createTextNode(t('updates_channel_stable')));
         channelFrag.appendChild(stableLabel);
 
         const betaLabel = document.createElement('label');
@@ -305,10 +306,10 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
             }
         });
         betaLabel.appendChild(betaRadio);
-        betaLabel.appendChild(document.createTextNode('beta'));
+        betaLabel.appendChild(document.createTextNode(t('updates_channel_beta')));
         channelFrag.appendChild(betaLabel);
 
-        body.appendChild(buildItem(buildRow('update channel', channelFrag)));
+        body.appendChild(buildItem(buildRow(t('update_channel'), channelFrag)));
 
         // Row 4: github owner. STAGED, behind the non-empty guard below.
         const owner = document.createElement('input');
@@ -320,7 +321,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         });
         const ownerNote = buildFieldNote();
         ownerNote.setAttribute('data-updates-owner-note', '');
-        body.appendChild(buildItem(buildRow('github owner', owner), ownerNote));
+        body.appendChild(buildItem(buildRow(t('github_owner'), owner), ownerNote));
 
         // Action row: label = live status text (idle: "up to date (vX)", ready:
         // "vX ready to apply", checking/downloading: progress, error: failure
@@ -334,7 +335,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         const action = document.createElement('button');
         action.type = 'button';
         action.className = 'settings-btn settings-btn-primary';
-        action.textContent = 'check for updates now';
+        action.textContent = t('check_updates_now');
         action.addEventListener('click', () => {
             if (lastStatus && lastStatus.status === 'ready') {
                 void onApplyClick(action);
@@ -363,7 +364,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
                 text = `up to date: v${s.currentVersion}`;
                 break;
             case 'checking':
-                text = 'checking for updates…';
+                text = t('checking_updates_ellipsis');
                 break;
             case 'downloading': {
                 const pct = typeof s.progress === 'number' ? Math.round(s.progress) : 0;
@@ -381,7 +382,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
                 }
                 break;
             case 'error':
-                text = `check failed: ${s.errorMessage ?? 'unknown error'}`;
+                text = `check failed: ${s.errorMessage ?? t('unknown_error')}`;
                 isError = true;
                 break;
             default:
@@ -414,11 +415,11 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         const busy = s.status === 'checking' || s.status === 'downloading';
         btn.disabled = busy || run !== null || restarting;
         if (s.status === 'ready') {
-            btn.textContent = s.availableVersion ? `apply v${s.availableVersion}` : 'apply update';
+            btn.textContent = s.availableVersion ? `apply v${s.availableVersion}` : t('apply_update');
             btn.classList.remove('settings-btn-primary');
             btn.classList.add('settings-btn-ready');
         } else {
-            btn.textContent = 'check for updates now';
+            btn.textContent = t('check_updates_now');
             btn.classList.remove('settings-btn-ready');
             btn.classList.add('settings-btn-primary');
         }
@@ -504,7 +505,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
     function commitOwnerChange(input: HTMLInputElement, note: HTMLElement): void {
         const next = input.value.trim();
         if (next.length === 0) {
-            setFieldNote(note, 'github owner cannot be empty');
+            setFieldNote(note, t('github_owner_empty'));
             return;
         }
         // Clear the refusal message before staging, for the reason spelled out
@@ -537,8 +538,8 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         const me: ApplyRun = { btn, prevText: btn.textContent, timer: undefined, lost: null };
         run = me;
         btn.disabled = true;
-        btn.textContent = 'applying…';
-        showApplyLine('installing update…');
+        btn.textContent = t('applying');
+        showApplyLine(t('installing_update'));
         void readApplyStatus(me);
         me.timer = window.setInterval(() => {
             void readApplyStatus(me);
@@ -603,7 +604,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         if (run !== me || restarting) return;
         lastStatus = s;
         if (!me.lost) {
-            showApplyLine(s.status === 'downloading' ? downloadingLine(s.progress) : 'installing update…');
+            showApplyLine(s.status === 'downloading' ? downloadingLine(s.progress) : t('installing_update'));
             return;
         }
         const view = me.lost.watch.read(s);
@@ -612,7 +613,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
                 showApplyLine(downloadingLine(view.progress));
                 return;
             case 'installing':
-                showApplyLine('installing update…');
+                showApplyLine(t('installing_update'));
                 return;
             case 'failed':
                 failApply(me, `apply failed: ${view.reason}`);
@@ -714,8 +715,8 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         // a page reload after a 5s grace period. The reload will fail until
         // Velopack finishes the swap and relaunches the server; that's
         // expected — leave the message visible.
-        showApplyLine('server restarting to apply update — page will reload…');
-        if (me) me.btn.textContent = 'restarting…';
+        showApplyLine(t('server_restarting_update'));
+        if (me) me.btn.textContent = t('restarting');
         window.setTimeout(() => {
             try {
                 ctx.reload();
@@ -729,9 +730,9 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         if (!actionBtn) return;
         const btn = actionBtn;
         btn.disabled = true;
-        btn.textContent = 'checking…';
+        btn.textContent = t('checking');
         if (statusEl) {
-            statusEl.textContent = 'checking for updates…';
+            statusEl.textContent = t('checking_updates');
             statusEl.classList.remove('settings-status-error');
         }
         // §25b using-declaration replaces the prior try/finally. The dispose
@@ -759,7 +760,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
                 // the click's result, so it goes on the tab's line.
                 if (lastStatus) applyStatusText(lastStatus);
                 tabAlert.show('error', `check failed (${r.status})`);
-                btn.textContent = 'check for updates now';
+                btn.textContent = t('check_updates_now');
                 return;
             }
             const s = (await r.json()) as UpdatesStatusResponse;
@@ -777,7 +778,7 @@ export function buildUpdatesTab(ctx: TabContext, store: StagedSettingsStore): HT
         } catch {
             if (lastStatus) applyStatusText(lastStatus);
             tabAlert.show('error', "couldn't reach server");
-            btn.textContent = 'check for updates now';
+            btn.textContent = t('check_updates_now');
         }
     }
 

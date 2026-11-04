@@ -1,3 +1,5 @@
+import { t } from '../../client/i18n';
+
 const TAG = '[ClipboardCopyPrompt]';
 
 /**
@@ -39,12 +41,12 @@ export class ClipboardCopyPrompt {
         element.setAttribute('role', 'status');
 
         const label = document.createElement('span');
-        label.textContent = 'Device clipboard ready —';
+        label.textContent = t('clipboard_ready');
 
         const copy = document.createElement('button');
         copy.type = 'button';
         copy.className = 'stream-clipboard-prompt-copy';
-        copy.textContent = 'click to copy';
+        copy.textContent = t('clipboard_click_copy');
         copy.addEventListener('click', this.onCopyClick);
 
         const dismiss = document.createElement('button');

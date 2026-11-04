@@ -1,4 +1,5 @@
 import { SettingsModal } from './SettingsModal';
+import { t } from './i18n';
 
 // Hardcoded gear icon SVG (constant string, no user input). 24x24 viewBox; uses
 // currentColor so it inherits the theme's text color. Mirrors the pattern in
@@ -20,8 +21,8 @@ const GEAR_SVG_MARKUP = [
 export function createSettingsHeader(): HTMLElement {
     const btn = document.createElement('button');
     btn.className = 'settings-header';
-    btn.title = 'Settings';
-    btn.setAttribute('aria-label', 'Open settings');
+    btn.title = t('settings');
+    btn.setAttribute('aria-label', t('open_settings_aria'));
     // Safe: GEAR_SVG_MARKUP is a hardcoded constant with no interpolation.
     btn.innerHTML = GEAR_SVG_MARKUP;
 

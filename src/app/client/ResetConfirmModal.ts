@@ -1,4 +1,5 @@
 import { Modal } from '../ui/Modal';
+import { t } from './i18n';
 
 /**
  * Overlay modal shown when the user clicks "reset" in the App section's
@@ -55,14 +56,14 @@ export class ResetConfirmModal extends Modal {
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'modal-button reset-cancel';
-        cancelBtn.textContent = 'cancel';
+        cancelBtn.textContent = t('cancel_btn');
         cancelBtn.addEventListener('click', () => this.resolveAndClose(false));
         footer.appendChild(cancelBtn);
 
         const confirmBtn = document.createElement('button');
         confirmBtn.type = 'button';
         confirmBtn.className = 'modal-button modal-button-primary reset-confirm';
-        confirmBtn.textContent = 'confirm reset';
+        confirmBtn.textContent = t('reset_confirm');
         confirmBtn.addEventListener('click', () => this.resolveAndClose(true));
         footer.appendChild(confirmBtn);
 

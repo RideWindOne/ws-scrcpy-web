@@ -4,6 +4,7 @@ import { isPublicSuffix } from '../../../../common/publicSuffix';
 import { refusedSubjectMessage } from '../../../../common/refusedSubject';
 import type { ServiceStatusResponse } from '../../../../common/ServiceEvents';
 import { type AdminRefusal, adminRefusal } from '../../adminGate';
+import { t } from '../../i18n';
 import { ConfirmModal } from '../../ConfirmModal';
 import { themeHelpLink } from '../../helpLink';
 import { buildCombobox } from '../Combobox';
@@ -240,13 +241,13 @@ export function listenerStatusNotice(state: TlsCertState): string | null {
     }
     switch (listener.reason) {
         case 'restart-required':
-            return 'certificate ready, but the https listener has not started yet. restart the server to begin serving https — regenerating will not help, and destroys any ca a device has already installed.';
+            return t('cert_ready_listener_not_started');
         case 'config-override':
             return "this certificate exists, but an advanced server configuration in config.json is overriding it. https will not start until that configuration changes — regenerating won't help.";
         case 'port-collision':
             return 'the https port is the same as the plain http port, so https could not start. change the https port on the server tab to a different value; saving it restarts the server.';
         case 'bind-failed':
-            return 'the https listener failed to start, possibly because its port is already in use. check the server logs, free the port if needed, and restart.';
+            return t('https_listener_failed');
     }
 }
 
@@ -265,14 +266,14 @@ export const SUBJECT_HELP_HREF = 'help/certificate-subject.html';
  * chosen kind (0.5.5): what has to match is the ADDRESS the other device types
  * in ip mode, and the NAME in hostname mode. SUBJECT_HELP_LINK_TEXT follows it.
  */
-export const SUBJECT_GUIDE_IP_TEXT = 'must match the address you type on the other device to reach this server. ';
-export const SUBJECT_GUIDE_HOSTNAME_TEXT = 'must match the name you type on the other device to reach this server. ';
+export const SUBJECT_GUIDE_IP_TEXT = t('cert_must_match_address') + ' ';
+export const SUBJECT_GUIDE_HOSTNAME_TEXT = t('cert_must_match_name') + ' ';
 
 /** The guide's link to SUBJECT_HELP_HREF. */
 export const SUBJECT_HELP_LINK_TEXT = 'how this works ↗';
 
 /** The line under the root ca download; TRUST_HELP_LINK_TEXT follows it. */
-export const TRUST_HELP_TEXT = 'install it on each device that connects (firefox has its own store). ';
+export const TRUST_HELP_TEXT = t('ca_install_each_device') + ' ';
 
 /** The trust line's link to TRUST_HELP_HREF. */
 export const TRUST_HELP_LINK_TEXT = 'install guide ↗';
@@ -307,12 +308,12 @@ function buildHelpLink(href: string, text: string): HTMLAnchorElement {
  * ever reaches the page as text.
  */
 export function publicSuffixWarning(value: string): string {
-    return `"${value}" is an internet domain ending, not a computer's name, so it can't be used. use something like ${value}.lan, or the name your devices use to reach this computer.`;
+    return t('public_suffix_warning').replaceAll('$1', value);
 }
 
 /** The exposure-unavailable notice (I11) with no certificate, and with one but no https listener yet. */
-export const EXPOSURE_NEEDS_CERTIFICATE = 'needs a certificate first.';
-export const EXPOSURE_NEEDS_RESTART = 'restart the server first.';
+export const EXPOSURE_NEEDS_CERTIFICATE = t('exposure_needs_certificate');
+export const EXPOSURE_NEEDS_RESTART = t('exposure_needs_restart');
 
 /** The Dependencies tab's id in the Settings dialog (SettingsModal.ts), where mkcert is installed. */
 export const DEPENDENCIES_TAB_ID = 'dependencies';
@@ -384,7 +385,7 @@ export const MKCERT_MISSING_NOTICE =
     'install mkcert from the dependencies tab to generate a certificate, which is what turns https on. until then, the certificate controls below are unavailable; the other settings on this tab still work.';
 
 /** The words of MKCERT_MISSING_NOTICE that are the link to the Dependencies tab. */
-const MKCERT_NOTICE_LINK_TEXT = 'dependencies tab';
+const MKCERT_NOTICE_LINK_TEXT = t('tab_dependencies_link');
 
 /**
  * Build the mkcert callout: MKCERT_MISSING_NOTICE with its "dependencies tab"
@@ -441,7 +442,7 @@ export async function recheckLocalHttpsMkcert(panel: HTMLElement): Promise<void>
  */
 export class TlsStateReadError extends Error {
     constructor(readonly refusal: AdminRefusal | null) {
-        super(refusal ? `GET /api/tls/state refused (${refusal})` : 'GET /api/tls/state failed');
+        super(refusal ? `GET /api/tls/state refused (${refusal})` : t('tls_state_failed'));
         this.name = 'TlsStateReadError';
     }
 }
@@ -521,10 +522,10 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     let mkcertReadSeq = 0;
     const candidateIpsFor = (s: TlsCertState): string[] => s.candidateIps ?? deps.candidateIps;
 
-    const { section } = buildSplitSection('Local HTTPS');
-    const certificateCard = addCard(section, 'Certificate');
-    const trustCard = addCard(section, 'Trust');
-    const exposureCard = addCard(section, 'Exposure');
+    const { section } = buildSplitSection(t('tab_local_https'));
+    const certificateCard = addCard(section, t('card_certificate'));
+    const trustCard = addCard(section, t('card_trust'));
+    const exposureCard = addCard(section, t('card_exposure'));
 
     // 0.5.1: generate needs mkcert, and installing it is the Dependencies
     // tab's job (its install button). Until then generate and the subject
@@ -544,7 +545,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     subjectInput.setAttribute('data-tls-subject', '');
     // Its small visible label went with the subject's second line (0.5.5);
     // the row's "certificate subject" names it to the eye, this to everyone.
-    subjectInput.setAttribute('aria-label', 'certificate subject');
+    subjectInput.setAttribute('aria-label', t('cert_subject'));
     subjectInput.spellcheck = false;
 
     const ipLabel = document.createElement('label');
@@ -554,7 +555,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     ipRadio.name = 'tls-subject-kind';
     ipRadio.value = 'ip';
     ipLabel.appendChild(ipRadio);
-    ipLabel.appendChild(document.createTextNode('ip address'));
+    ipLabel.appendChild(document.createTextNode(t('ip_address')));
 
     const hostLabel = document.createElement('label');
     hostLabel.className = 'settings-radio-label';
@@ -563,7 +564,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     hostRadio.name = 'tls-subject-kind';
     hostRadio.value = 'hostname';
     hostLabel.appendChild(hostRadio);
-    hostLabel.appendChild(document.createTextNode('hostname'));
+    hostLabel.appendChild(document.createTextNode(t('https_hostname')));
 
     const initialCandidateIps = candidateIpsFor(initialState);
     const initialKind: 'ip' | 'hostname' = initialState.kind === 'hostname' ? 'hostname' : 'ip';
@@ -625,7 +626,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     // One line since 0.5.5: the radios, then the one box beside them.
     const subjectFrag = document.createDocumentFragment();
     subjectFrag.append(ipLabel, hostLabel, subjectCombo.root);
-    const subjectRow = buildRow('certificate subject', subjectFrag);
+    const subjectRow = buildRow(t('cert_subject'), subjectFrag);
 
     // Notification 2 — ALWAYS shown, beside the subject controls: what each
     // subject choice means, in the terms of the two radios just above. Until
@@ -664,7 +665,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     const generateBtn = document.createElement('button');
     generateBtn.type = 'button';
     generateBtn.className = 'settings-btn settings-btn-primary';
-    generateBtn.textContent = 'generate';
+    generateBtn.textContent = t('generate');
     generateBtn.setAttribute('data-tls-generate', '');
 
     // I1: enabling local HTTPS was previously one-way from this panel --
@@ -674,7 +675,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     const revokeBtn = document.createElement('button');
     revokeBtn.type = 'button';
     revokeBtn.className = 'settings-btn settings-btn-danger';
-    revokeBtn.textContent = 'revoke…';
+    revokeBtn.textContent = t('revoke');
     revokeBtn.setAttribute('data-tls-revoke', '');
     revokeBtn.disabled = true;
 
@@ -683,7 +684,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     certActionsFrag.appendChild(revokeBtn);
     // The certificate's item: the row, then every notice about the certificate
     // (appended below as each is built).
-    const certificateItem = buildItem(buildRow('certificate', certActionsFrag));
+    const certificateItem = buildItem(buildRow(t('certificate'), certActionsFrag));
     certificateCard.appendChild(certificateItem);
 
     // A generate in flight holds its button down; a re-check landing
@@ -730,7 +731,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     function updateSubjectMode(): void {
         const ip = ipRadio.checked;
         subjectCombo.setListAvailable(ip);
-        subjectInput.placeholder = ip ? 'ip address' : 'hostname or domain name';
+        subjectInput.placeholder = ip ? t('ip_address') : t('hostname_or_domain');
         subjectGuideLead.textContent = ip ? SUBJECT_GUIDE_IP_TEXT : SUBJECT_GUIDE_HOSTNAME_TEXT;
         updateSubjectCheck();
     }
@@ -784,7 +785,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     const downloadBtn = document.createElement('button');
     downloadBtn.type = 'button';
     downloadBtn.className = 'settings-btn';
-    downloadBtn.textContent = 'download ca certificate';
+    downloadBtn.textContent = t('download_ca_cert');
     downloadBtn.setAttribute('data-tls-download', '');
 
     // 0.5.3: the per-device install steps moved to the help page (section 4 of
@@ -795,7 +796,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     trustHelp.style.gridColumn = '1 / -1';
     trustHelp.setAttribute('data-tls-trust-help', '');
     trustHelp.append(TRUST_HELP_TEXT, buildHelpLink(TRUST_HELP_HREF, TRUST_HELP_LINK_TEXT));
-    const trustItem = buildItem(buildRow('root ca', downloadBtn), trustHelp);
+    const trustItem = buildItem(buildRow(t('root_ca'), downloadBtn), trustHelp);
     trustCard.appendChild(trustItem);
 
     function renderCertState(state: TlsCertState): void {
@@ -825,7 +826,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
         // "uses textContent for the subject").
         certSummary.textContent = '';
         certSummary.hidden = false;
-        certSummary.appendChild(document.createTextNode('current certificate: '));
+        certSummary.appendChild(document.createTextNode(t('current_certificate') + ' '));
         const subjectSpan = document.createElement('span');
         subjectSpan.setAttribute('data-tls-current-subject', '');
         subjectSpan.textContent = state.subject ?? '(unknown)';
@@ -838,7 +839,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
         // gets the restore note, never "install the ca below" -- that call to
         // action is meaningless while the download button it points at is
         // disabled.
-        setNotice(caRestoreNotice, !caPresent ? 'regenerate to restore the ca download.' : null);
+        setNotice(caRestoreNotice, !caPresent ? t('regenerate_restore_ca') : null);
 
         // C1: the listener-truth notice, ahead of the CA-trust claim below.
         setNotice(listenerStatusNoticeEl, listenerStatusNotice(state));
@@ -867,14 +868,14 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
         setNotice(
             untrustedCaNotice,
             caPresent && !listenerHasKnownProblem
-                ? 'browsers will not trust this certificate until the ca is installed. install it below to remove the warning — streaming already works either way.'
+                ? t('ca_not_trusted_note')
                 : null,
         );
         setNotice(mismatchNotice, certSubjectMismatchNotice(state, candidateIps));
         setNotice(
             hostnameGuideNotice,
             state.kind === 'hostname'
-                ? 'this name must resolve on every machine that connects — add it to their hosts file or your local dns.'
+                ? t('cert_name_resolve_note')
                 : null,
         );
         setNotice(expiryNotice, certExpiryNotice(state, new Date()));
@@ -895,7 +896,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
             const hostSpan = document.createElement('span');
             hostSpan.textContent = state.subject;
             allowedHostPersistentNotice.appendChild(
-                document.createTextNode('this server accepts connections addressed to '),
+                document.createTextNode(t('server_accepts_connections') + ' '),
             );
             allowedHostPersistentNotice.appendChild(hostSpan);
             allowedHostPersistentNotice.appendChild(document.createTextNode('.'));
@@ -930,13 +931,13 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
             const kind: 'ip' | 'hostname' = hostRadio.checked ? 'hostname' : 'ip';
             const value = subjectInput.value.trim();
             if (!value) {
-                showTransientAlert('error', 'enter an ip address or hostname first.');
+                showTransientAlert('error', t('enter_addr_first'));
                 return;
             }
             generating = true;
             applyGenerateGate();
             const prevText = generateBtn.textContent;
-            generateBtn.textContent = 'generating…';
+            generateBtn.textContent = t('generating');
             try {
                 const res = await deps.fetchFn('/api/tls/generate', {
                     method: 'POST',
@@ -975,7 +976,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
                 // name (no control in Settings is labeled allowedHosts).
                 const allowedHostSuffix: TabAlertPart[] =
                     data.allowedHostAdded && data.subject
-                        ? [' this server now also accepts connections addressed to ', { echo: data.subject }, '.']
+                        ? [' ', t('server_accepts_connections_now'), ' ', { echo: data.subject }, '.']
                         : [];
                 // C1/NF-1: the review's headline case -- a fresh certificate
                 // with no restart yet has no HTTPS listener genuinely
@@ -1006,15 +1007,15 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
                     showTransientAlert(
                         'success',
                         data.httpsListener.bound
-                            ? 'certificate generated. restart the server so it serves the new certificate.'
-                            : 'certificate generated. restart the server to start serving https.',
+                            ? t('cert_generated_restart')
+                            : t('cert_generated_https'),
                         ...allowedHostSuffix,
                     );
                 } else {
-                    showTransientAlert('success', 'certificate generated.', ...allowedHostSuffix);
+                    showTransientAlert('success', t('cert_generated'), ...allowedHostSuffix);
                 }
             } catch {
-                showTransientAlert('error', 'could not reach the server.');
+                showTransientAlert('error', t('could_not_reach_server'));
             } finally {
                 generating = false;
                 applyGenerateGate();
@@ -1033,12 +1034,8 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
             const confirmed = await (deps.askChild ?? askUnbound)(
                 () =>
                     ConfirmModal.confirm({
-                        title: 'revoke the local https certificate?',
-                        message:
-                            'this deletes the certificate AND the ca. every device that installed the ca to trust ' +
-                            'this server will see a warning again, and streaming from other machines stops until you ' +
-                            'generate a new certificate and they install the new ca. the running server keeps ' +
-                            'answering https with the old material from memory until it restarts. continue?',
+                        title: t('revoke_cert_q'),
+                        message: t('revoke_cert_warn'),
                     }),
                 false,
             );
@@ -1076,10 +1073,10 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
                 section.dispatchEvent(new CustomEvent(TLS_CERT_CHANGED_EVENT, { bubbles: true }));
                 showTransientAlert(
                     'success',
-                    'certificate and ca revoked. restart the server to fully stop the https listener.',
+                    t('cert_ca_revoked'),
                 );
             } catch {
-                showTransientAlert('error', 'could not reach the server.');
+                showTransientAlert('error', t('could_not_reach_server'));
                 revokeBtn.disabled = false;
             }
         })();
@@ -1113,9 +1110,9 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
                 a.download = CA_ROOT_DOWNLOAD_FILE_NAME;
                 a.click();
                 URL.revokeObjectURL(a.href);
-                showTransientAlert('success', 'ca certificate downloaded.');
+                showTransientAlert('success', t('ca_cert_downloaded'));
             } catch {
-                showTransientAlert('error', 'could not reach the server.');
+                showTransientAlert('error', t('could_not_reach_server'));
             } finally {
                 downloadBtn.disabled = currentState.caPresent === false;
             }
@@ -1128,7 +1125,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
         // One line each (0.5.5): the row's label and the notices below say the rest.
         { value: 'open', label: 'open' },
         { value: 'httpsOnly', label: 'https only' },
-        { value: 'redirect', label: 'redirect to https' },
+        { value: 'redirect', label: t('redirect_https') },
     ];
     // I5: pre-select the radio matching the SERVER's current mode (read from
     // `GET /api/tls/state`'s `httpExposure`, commit `861a5902`), not a
@@ -1157,11 +1154,11 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
     const okBtn = document.createElement('button');
     okBtn.type = 'button';
     okBtn.className = 'settings-btn settings-btn-primary';
-    okBtn.textContent = 'ok';
+    okBtn.textContent = t('ok');
     okBtn.setAttribute('data-exposure-ok', '');
     exposureFrag.appendChild(okBtn);
     // The exposure's item: the row and its three notices.
-    const exposureItem = buildItem(buildRow('plain http exposure', exposureFrag));
+    const exposureItem = buildItem(buildRow(t('plain_http_exposure'), exposureFrag));
     exposureCard.appendChild(exposureItem);
 
     const exposureLockoutNotice = buildNoticeRow();
@@ -1219,8 +1216,8 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
             // answers them with a 302 to the https address.
             const otherMachines =
                 radio.value === 'redirect'
-                    ? 'other machines that open the plain http address are sent to the https address instead.'
-                    : 'plain http will stop answering other machines.';
+                    ? t('redirect_https_note')
+                    : t('plain_http_stop_note');
             setNotice(
                 exposureLockoutNotice,
                 narrowed
@@ -1238,7 +1235,7 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
             setNotice(
                 exposureRestartNotice,
                 narrowed
-                    ? 'this takes effect immediately for new connections. streams already running are not affected.'
+                    ? t('exposure_effect_note')
                     : null,
             );
         });
@@ -1258,8 +1255,8 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
                 showTransientAlert(
                     'error',
                     currentState.status === 'ready'
-                        ? 'restart the server first — this mode has no https listener to apply to yet.'
-                        : 'generate a certificate first — this mode has no https listener to apply to.',
+                        ? t('exposure_restart_first')
+                        : t('exposure_generate_first'),
                 );
                 return;
             }
@@ -1275,16 +1272,16 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
                 });
                 if (!res.ok) {
                     if (res.status === 404) {
-                        showTransientAlert('error', 'this server does not support saving this setting yet.');
+                        showTransientAlert('error', t('not_supported_yet'));
                         return;
                     }
                     const data = (await res.json().catch(() => null)) as { error?: string } | null;
                     showTransientAlert('error', data?.error ?? `could not change plain-http exposure (${res.status}).`);
                     return;
                 }
-                showTransientAlert('success', 'plain-http exposure updated.');
+                showTransientAlert('success', t('exposure_updated'));
             } catch {
-                showTransientAlert('error', 'could not reach the server.');
+                showTransientAlert('error', t('could_not_reach_server'));
             } finally {
                 okBtn.disabled = false;
             }
@@ -1318,13 +1315,12 @@ export async function buildLocalHttpsPanel(deps: LocalHttpsPanelDeps): Promise<H
  * (since beta.164). The panel is never built there, so nothing here asks.
  */
 export function buildLocalHttpsContainerNote(): HTMLElement {
-    const { section, card } = buildSection('Local HTTPS');
+    const { section, card } = buildSection(t('tab_local_https'));
     section.setAttribute('data-local-https-container-note', '');
     const note = document.createElement('p');
     note.className = 'settings-status';
     note.style.gridColumn = '1 / -1';
-    note.textContent =
-        "local HTTPS doesn't apply in a container. serve HTTPS from a reverse proxy in front of the container — that is the only supported way to add HTTPS to the image.";
+    note.textContent = t('local_https_not_applicable_container');
     card.appendChild(buildItem(note));
     // Its own status line, like every tab: the dialog's save reports there
     // when this is the tab on screen.
@@ -1378,11 +1374,11 @@ export function buildLocalHttpsTab(ctx: TabContext): HTMLElement {
     // Stable hook for tests, in the spirit of the Dependencies tab's.
     root.dataset['settingsTab'] = 'local-https';
 
-    const placeholder = buildSection('Local HTTPS');
+    const placeholder = buildSection(t('tab_local_https'));
     const loading = document.createElement('p');
     loading.className = 'settings-status';
     loading.style.gridColumn = '1 / -1';
-    loading.textContent = 'loading…';
+    loading.textContent = t('loading');
     const loadingItem = buildItem(loading);
     placeholder.card.appendChild(loadingItem);
     // The tab's status line until the panel (which has its own) replaces it.
@@ -1488,7 +1484,7 @@ export function buildLocalHttpsTab(ctx: TabContext): HTMLElement {
         const retryBtn = document.createElement('button');
         retryBtn.type = 'button';
         retryBtn.className = 'settings-btn';
-        retryBtn.textContent = 'retry';
+        retryBtn.textContent = t('retry');
         retryBtn.setAttribute('data-local-https-retry', '');
         retryBtn.addEventListener('click', () => {
             placeholder.card.replaceChildren(loadingItem);

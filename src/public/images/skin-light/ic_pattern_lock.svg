@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48px" height="48px" viewBox="0 0 48 48" fill="var(--svg-button-fill)">
+    <!-- 3x3 点阵 + 对角线连线, 与 Screen-Remote ic_toolbar_pattern_lock 一致 -->
+    <path d="M14,14m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M24,14m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M34,14m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M14,24m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M24,24m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M34,24m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M14,34m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M24,34m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M34,34m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <path d="M14,14 L34,34" stroke="var(--svg-button-fill)" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

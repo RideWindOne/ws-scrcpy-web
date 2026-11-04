@@ -3,6 +3,12 @@ import { AdbClient, parseSerialFromMdnsName } from '../AdbClient';
 import { resolveUserId } from '../auth/currentUser';
 import { Config } from '../Config';
 import { parseScreenState, SCREEN_STATE_COMMAND } from '../deviceScreenState';
+import {
+    NOTIFICATION_COMMAND_NOREDACT,
+    NOTIFICATION_COMMAND_REDACT,
+    parseDeviceNotifications,
+    parsePackageList,
+} from '../deviceNotifications';
 import { Logger } from '../Logger';
 import { lookupIpv4 } from '../network/lookupIpv4';
 import { resolveMac } from '../network/MacResolver';
@@ -267,6 +273,175 @@ export class DeviceDiscoveryApi {
                 const awake = output.includes('Awake');
                 res.writeHead(200);
                 res.end(JSON.stringify({ awake }));
+                return true;
+            }
+
+            if (req.method === 'POST' && url === '/api/devices/input-text') {
+                const { udid, text, enter } = await readJsonBodyStrict<{ udid?: string; text?: string; enter?: boolean }>(req);
+                if (!udid || !text) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'udid and text are required' }));
+                    return true;
+                }
+                // Escape single quotes for shell safety
+                const escapedText = text.replace(/'/g, `'\\''`);
+                await this.adbClient.shell(udid, `input text '${escapedText}'`);
+                // Press enter if requested
+                if (enter) {
+                    await new Promise((r) => setTimeout(r, 200));
+                    await this.adbClient.shell(udid, 'input keyevent 66'); // KEYCODE_ENTER
+                }
+                res.writeHead(200);
+                res.end(JSON.stringify({ success: true }));
+                return true;
+            }
+
+            if (req.method === 'POST' && url === '/api/devices/input-swipe') {
+                const { udid, x1, y1, x2, y2, duration } = await readJsonBodyStrict<{ 
+                    udid?: string; 
+                    x1?: number; 
+                    y1?: number; 
+                    x2?: number; 
+                    y2?: number; 
+                    duration?: number 
+                }>(req);
+                if (!udid || x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'udid, x1, y1, x2, y2 are required' }));
+                    return true;
+                }
+                const dur = duration || 300;
+                await this.adbClient.shell(udid, `input swipe ${x1} ${y1} ${x2} ${y2} ${dur}`);
+                res.writeHead(200);
+                res.end(JSON.stringify({ success: true }));
+                return true;
+            }
+
+            if (req.method === 'POST' && url === '/api/devices/input-tap') {
+                const { udid, x, y } = await readJsonBodyStrict<{ udid?: string; x?: number; y?: number }>(req);
+                if (!udid || x === undefined || y === undefined) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'udid, x, y are required' }));
+                    return true;
+                }
+                await this.adbClient.shell(udid, `input tap ${x} ${y}`);
+                res.writeHead(200);
+                res.end(JSON.stringify({ success: true }));
+                return true;
+            }
+
+            if (req.method === 'POST' && url === '/api/devices/launch-app') {
+                const { udid, package: pkg } = await readJsonBodyStrict<{ udid?: string; package?: string }>(req);
+                if (!udid || !pkg) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'udid and package are required' }));
+                    return true;
+                }
+                if (!/^[a-zA-Z0-9._-]+$/.test(pkg)) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'invalid package name' }));
+                    return true;
+                }
+                // monkey launches the package's launcher activity without us
+                // having to resolve a specific activity component.
+                const output = await this.adbClient.shell(udid, `monkey -p ${pkg} -c android.intent.category.LAUNCHER 1 2>/dev/null`);
+                const ok = /Events injected:\s*1/.test(output) || output.includes('injected: 1');
+                res.writeHead(200);
+                res.end(JSON.stringify({ success: ok }));
+                return true;
+            }
+
+            if (req.method === 'GET' && url.startsWith('/api/devices/apps')) {
+                const parsedUrl = new URL(url, `http://${req.headers.host}`);
+                const udid = parsedUrl.searchParams.get('udid');
+                if (!udid) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'udid is required' }));
+                    return true;
+                }
+                // Third-party packages only: system packages are never picked as
+                // notification sources in the UI.
+                const output = await this.adbClient.shell(udid, 'pm list packages -3 2>/dev/null');
+                const packages = parsePackageList(output);
+                res.writeHead(200);
+                res.end(JSON.stringify({ packages }));
+                return true;
+            }
+
+            if (req.method === 'GET' && url.startsWith('/api/devices/notifications')) {
+                const parsedUrl = new URL(url, `http://${req.headers.host}`);
+                const udid = parsedUrl.searchParams.get('udid');
+                const packages = (parsedUrl.searchParams.get('packages') || '')
+                    .split(',')
+                    .map((p) => p.trim())
+                    .filter((p) => p.length > 0);
+                if (!udid) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'udid is required' }));
+                    return true;
+                }
+                try {
+                    let output = await this.adbClient.shell(udid, NOTIFICATION_COMMAND_NOREDACT);
+                    let redacted = false;
+                    // --noredact is refused on some stock builds; the dump then
+                    // contains no NotificationRecord lines. Fall back to the
+                    // redacted dump (titles usually survive, bodies may not).
+                    if (!output.includes('NotificationRecord(')) {
+                        output = await this.adbClient.shell(udid, NOTIFICATION_COMMAND_REDACT);
+                        redacted = true;
+                    }
+                    const notifications = parseDeviceNotifications(output, packages);
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ notifications, redacted }));
+                    return true;
+                } catch (e) {
+                    res.writeHead(500);
+                    res.end(JSON.stringify({ error: (e as Error).message }));
+                    return true;
+                }
+            }
+
+            if (req.method === 'GET' && url.startsWith('/api/devices/ui-hierarchy')) {                const parsedUrl = new URL(url, `http://${req.headers.host}`);
+                const udid = parsedUrl.searchParams.get('udid');
+                if (!udid) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'udid is required' }));
+                    return true;
+                }
+                // Dump the UI hierarchy. Some devices take longer than 500 ms to
+                // write the file, and a failed dump must not be returned as a
+                // "successful" non-XML body (the client would only see an empty
+                // detection). Retry the cat until real <hierarchy> XML shows up,
+                // and surface the adb error text when it never does.
+                try {
+                    await this.adbClient.shell(udid, 'uiautomator dump /sdcard/window_dump.xml');
+                } catch (e) {
+                    res.writeHead(500);
+                    res.end(JSON.stringify({ error: `uiautomator dump failed: ${(e as Error).message}` }));
+                    return true;
+                }
+                let xml = '';
+                for (let attempt = 0; attempt < 5; attempt++) {
+                    await new Promise((r) => setTimeout(r, 600));
+                    try {
+                        xml = await this.adbClient.shell(udid, 'cat /sdcard/window_dump.xml');
+                    } catch (e) {
+                        xml = '';
+                    }
+                    if (xml.includes('<hierarchy')) break;
+                }
+                if (!xml.includes('<hierarchy')) {
+                    res.writeHead(500);
+                    res.end(
+                        JSON.stringify({
+                            error: 'ui hierarchy dump produced no valid XML',
+                            detail: xml.slice(0, 300),
+                        }),
+                    );
+                    return true;
+                }
+                res.writeHead(200, { 'Content-Type': 'application/xml' });
+                res.end(xml);
                 return true;
             }
 

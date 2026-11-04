@@ -1,6 +1,7 @@
 import { Modal } from '../ui/Modal';
 import type { MeResponse, Role, UserRow } from './AuthClient';
 import { authClient } from './AuthClient';
+import { t } from './i18n';
 
 export class UsersModal extends Modal {
     // NOTE: Do NOT store a ref to the body container in buildBody() — class field
@@ -9,7 +10,7 @@ export class UsersModal extends Modal {
     private statusEl: HTMLElement | null = null;
 
     constructor() {
-        super({ title: 'Users' });
+        super({ title: t('users_title') });
         this.dialog.classList.add('users-modal');
         queueMicrotask(() => void this.refresh());
     }
@@ -75,12 +76,12 @@ export class UsersModal extends Modal {
 
             if (u.disabled) {
                 const s = document.createElement('span');
-                s.textContent = 'disabled';
+                s.textContent = t('users_disabled_state');
                 s.style.cssText = 'font-size: 12px; color: #e05555;';
                 infoRow.appendChild(s);
             } else if (isLocked) {
                 const s = document.createElement('span');
-                s.textContent = 'locked';
+                s.textContent = t('users_locked_state');
                 s.style.cssText = 'font-size: 12px; color: #e0a455;';
                 infoRow.appendChild(s);
             }
@@ -141,7 +142,7 @@ export class UsersModal extends Modal {
                 const unlockBtn = document.createElement('button');
                 unlockBtn.type = 'button';
                 unlockBtn.className = 'modal-button';
-                unlockBtn.textContent = 'unlock';
+                unlockBtn.textContent = t('users_unlock');
                 unlockBtn.setAttribute('data-action', 'unlock');
                 unlockBtn.addEventListener('click', () => {
                     void (async () => {
@@ -161,7 +162,7 @@ export class UsersModal extends Modal {
             const resetBtn = document.createElement('button');
             resetBtn.type = 'button';
             resetBtn.className = 'modal-button';
-            resetBtn.textContent = 'reset password';
+            resetBtn.textContent = t('users_reset_password');
             resetBtn.addEventListener('click', () => {
                 resetBtn.style.display = 'none';
                 pwContainer.appendChild(
@@ -178,7 +179,7 @@ export class UsersModal extends Modal {
             const deleteBtn = document.createElement('button');
             deleteBtn.type = 'button';
             deleteBtn.className = 'modal-button';
-            deleteBtn.textContent = 'delete';
+            deleteBtn.textContent = t('users_delete');
             deleteBtn.addEventListener('click', () => {
                 void (async () => {
                     const res = await authClient.deleteUser(u.id);
@@ -203,7 +204,7 @@ export class UsersModal extends Modal {
         const addBtn = document.createElement('button');
         addBtn.type = 'button';
         addBtn.className = 'modal-button modal-button-primary';
-        addBtn.textContent = 'Add user';
+        addBtn.textContent = t('users_add_user');
         // The server takes the lockdown branch only while no enabled admin has a
         // password. Keying on `!authEnabled` asked a different question and got
         // a different answer: after login is disabled with the admin still
@@ -226,14 +227,14 @@ export class UsersModal extends Modal {
 
         const pwInput = document.createElement('input');
         pwInput.type = 'password';
-        pwInput.placeholder = 'new password';
+        pwInput.placeholder = t('users_new_password');
         pwInput.style.cssText = 'padding: 2px 6px; font-size: 13px;';
 
         const eyeBtn = document.createElement('button');
         eyeBtn.type = 'button';
         eyeBtn.className = 'modal-button';
         eyeBtn.textContent = '👁';
-        eyeBtn.title = 'Show/hide password';
+        eyeBtn.title = t('users_show_hide_pw');
         eyeBtn.addEventListener('click', () => {
             pwInput.type = pwInput.type === 'password' ? 'text' : 'password';
         });
@@ -241,7 +242,7 @@ export class UsersModal extends Modal {
         const confirmBtn = document.createElement('button');
         confirmBtn.type = 'button';
         confirmBtn.className = 'modal-button';
-        confirmBtn.textContent = 'confirm';
+        confirmBtn.textContent = t('users_confirm');
         confirmBtn.addEventListener('click', () => {
             void (async () => {
                 const res = await authClient.patchUser(userId, { password: pwInput.value });
@@ -256,7 +257,7 @@ export class UsersModal extends Modal {
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'modal-button';
-        cancelBtn.textContent = 'cancel';
+        cancelBtn.textContent = t('users_cancel');
         cancelBtn.addEventListener('click', onCancel);
 
         wrap.appendChild(pwInput);
@@ -295,20 +296,19 @@ export class UsersModal extends Modal {
                 'padding: 10px 12px; margin-bottom: 16px; border-radius: 4px;';
 
             const lockHeading = document.createElement('div');
-            lockHeading.textContent = 'Secure the admin account';
+            lockHeading.textContent = t('users_secure_admin');
             lockHeading.style.cssText = 'font-weight: bold; margin-bottom: 8px; color: #e05555;';
             lockSection.appendChild(lockHeading);
 
             const lockDesc = document.createElement('p');
-            lockDesc.textContent =
-                'Auth is currently disabled. Set an admin username and password — the app will require login after this.';
+            lockDesc.textContent = t('users_lockdown_desc');
             lockDesc.style.cssText = 'margin: 0 0 10px; font-size: 13px; opacity: 0.85;';
             lockSection.appendChild(lockDesc);
 
             // Admin username
             const adminUserLabel = document.createElement('label');
             adminUserLabel.style.cssText = 'display: block; margin-bottom: 6px; font-size: 13px;';
-            adminUserLabel.textContent = 'Admin username';
+            adminUserLabel.textContent = t('users_admin_username');
             lockSection.appendChild(adminUserLabel);
 
             adminUsernameInput = document.createElement('input');
@@ -323,7 +323,7 @@ export class UsersModal extends Modal {
             // Admin password + eye toggle
             const adminPwLabel = document.createElement('label');
             adminPwLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 13px;';
-            adminPwLabel.textContent = 'Admin password';
+            adminPwLabel.textContent = t('users_admin_password');
             lockSection.appendChild(adminPwLabel);
 
             const adminPwRow = document.createElement('div');
@@ -339,7 +339,7 @@ export class UsersModal extends Modal {
             adminEyeBtn.type = 'button';
             adminEyeBtn.className = 'modal-button';
             adminEyeBtn.textContent = '👁';
-            adminEyeBtn.title = 'Show/hide admin password';
+            adminEyeBtn.title = t('users_show_hide_admin_pw');
             adminEyeBtn.addEventListener('click', () => {
                 adminPasswordInput!.type = adminPasswordInput!.type === 'password' ? 'text' : 'password';
             });
@@ -358,14 +358,14 @@ export class UsersModal extends Modal {
         newUserSection.className = 'new-user-section';
 
         const newUserHeading = document.createElement('div');
-        newUserHeading.textContent = 'New user';
+        newUserHeading.textContent = t('users_new_user');
         newUserHeading.style.cssText = 'font-weight: bold; margin-bottom: 8px;';
         newUserSection.appendChild(newUserHeading);
 
         // Username
         const userLabel = document.createElement('label');
         userLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 13px;';
-        userLabel.textContent = 'Username';
+        userLabel.textContent = t('users_username');
         newUserSection.appendChild(userLabel);
 
         const usernameInput = document.createElement('input');
@@ -378,7 +378,7 @@ export class UsersModal extends Modal {
         // Role select
         const roleLabel = document.createElement('label');
         roleLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 13px;';
-        roleLabel.textContent = 'Role';
+        roleLabel.textContent = t('users_role');
         newUserSection.appendChild(roleLabel);
 
         const roleSelect = document.createElement('select');
@@ -395,7 +395,7 @@ export class UsersModal extends Modal {
         // Password + eye toggle
         const pwLabel = document.createElement('label');
         pwLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 13px;';
-        pwLabel.textContent = 'Password';
+        pwLabel.textContent = t('users_password');
         newUserSection.appendChild(pwLabel);
 
         const pwRow = document.createElement('div');
@@ -410,7 +410,7 @@ export class UsersModal extends Modal {
         eyeBtn.type = 'button';
         eyeBtn.className = 'modal-button';
         eyeBtn.textContent = '👁';
-        eyeBtn.title = 'Show/hide password';
+        eyeBtn.title = t('users_show_hide_pw');
         eyeBtn.addEventListener('click', () => {
             passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
         });
@@ -430,11 +430,11 @@ export class UsersModal extends Modal {
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'modal-button';
-        cancelBtn.textContent = 'Cancel';
+        cancelBtn.textContent = t('users_cancel');
         cancelBtn.addEventListener('click', () => void this.refresh());
         btnRow.appendChild(cancelBtn);
 
-        const submitLabel = needsLockdown ? 'Secure & add user' : 'Add user';
+        const submitLabel = needsLockdown ? t('users_secure_add') : t('users_add_user');
         const submitBtn = document.createElement('button');
         submitBtn.type = 'button';
         submitBtn.className = 'modal-button modal-button-primary';
@@ -448,7 +448,7 @@ export class UsersModal extends Modal {
                 const password = passwordInput.value;
 
                 if (!username || !password) {
-                    statusDiv.textContent = 'Username and password are required.';
+                    statusDiv.textContent = t('users_require_both');
                     return;
                 }
 
@@ -458,20 +458,20 @@ export class UsersModal extends Modal {
                     const adminPassword = adminPasswordInput?.value ?? '';
 
                     if (!adminUsername || !adminPassword) {
-                        statusDiv.textContent = 'Admin username and password are required to secure the account.';
+                        statusDiv.textContent = t('users_require_admin_both');
                         return;
                     }
 
                     const res = await authClient.lockdown({ adminUsername, adminPassword, username, role, password });
                     if (!res.ok) {
-                        statusDiv.textContent = `Lockdown failed: HTTP ${res.status}`;
+                        statusDiv.textContent = `${t('users_lockdown_failed')}${res.status}`;
                         return;
                     }
 
                     // App is now locked — show message and reload
                     container.replaceChildren();
                     const msg = document.createElement('p');
-                    msg.textContent = 'Login is now required. Reloading…';
+                    msg.textContent = t('users_login_required_reload');
                     msg.style.cssText = 'text-align: center; padding: 24px;';
                     container.appendChild(msg);
                     window.location.reload();

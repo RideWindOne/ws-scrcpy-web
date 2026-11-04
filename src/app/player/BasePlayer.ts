@@ -380,6 +380,11 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
         parent.appendChild(this.touchableCanvas);
     }
 
+    /** The container the player renders into (the .video element). */
+    public getParentElement(): HTMLElement | undefined {
+        return this.parentElement;
+    }
+
     protected needScreenInfoBeforePlay(): boolean {
         return true;
     }

@@ -142,6 +142,16 @@ export class SettingsService {
         return this.globalCache ?? {};
     }
 
+    /**
+     * Whether the debug overlay is enabled (global setting `debugOverlay`).
+     * Defaults to FALSE when unset — the overlay stays hidden unless an
+     * operator turns it on in Settings.
+     */
+    isDebugOverlayEnabled(): boolean {
+        const v = this.getGlobalCached()['debugOverlay'];
+        return v === undefined ? false : v === true;
+    }
+
     // ── NEW: device hydration + sync scoped accessors ──
 
     /**

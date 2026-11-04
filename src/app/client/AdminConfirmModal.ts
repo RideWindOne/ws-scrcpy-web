@@ -1,7 +1,7 @@
 import { Modal } from '../ui/Modal';
 
 export interface AdminConfirmOptions {
-    action: 'install service' | 'uninstall service';
+    action: string;
     platform?: 'win32' | 'linux';
 }
 
@@ -18,7 +18,7 @@ export interface AdminConfirmOptions {
 export class AdminConfirmModal extends Modal {
     private resolveFn: ((value: boolean) => void) | null = null;
     private resolved = false;
-    private readonly action: 'install service' | 'uninstall service';
+    private readonly action: string;
 
     public static confirm(opts: AdminConfirmOptions): Promise<boolean> {
         return new Promise((resolve) => {
