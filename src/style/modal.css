@@ -549,7 +549,10 @@ dialog.connect-modal .touch-layer {
 /* ── List files modal overrides ── */
 /* biome-ignore lint/style/noDescendingSpecificity: no background here; the earlier higher-specificity rule sets background only — disjoint properties, see the audit note at the top */
 dialog.list-files-modal .modal-frame {
-    width: clamp(500px, 70vw, 900px);
+    /* 92vw floor on phones (500px was wider than a 420-460px phone viewport,
+       clipping the right edge / wrapping the icon-size picker rows);
+       desktop keeps the 900px ceiling. */
+    width: clamp(320px, 92vw, 900px);
     max-height: 85vh;
 }
 

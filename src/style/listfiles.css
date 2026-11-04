@@ -367,19 +367,22 @@
 }
 
 .list-files-size-options {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
+    /* Fixed 4 columns so 16/20/24/32px sit in one tidy row even on narrow
+       phones (flex-wrap dropped 32px onto a second misaligned row). */
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
 }
 
 .list-files-size-option {
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    padding: 12px 16px;
+    padding: 12px 6px;
     cursor: pointer;
     text-align: center;
-    min-width: 60px;
+    min-width: 0;
     transition: border-color 0.15s;
 }
 
@@ -400,8 +403,10 @@
 
 .list-files-size-picker-controls {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
+    gap: 8px 12px;
 }
 
 .list-files-size-picker-controls label {
