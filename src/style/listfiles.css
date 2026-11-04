@@ -432,3 +432,30 @@
     opacity: 0.5;
     font-size: 13px;
 }
+
+/* ── Narrow screens (phones) ──
+   Fixed columns eat ~330px (check + icon + name + 80px size + 80px date +
+   hover actions), leaving the file-name column almost nothing on phones.
+   Shrink size/date and drop the hover-action column (no hover on touch)
+   so file names stay readable. */
+@media (max-width: 480px) {
+    .list-files-header,
+    .list-files-row {
+        padding-left: 8px;
+        padding-right: 8px;
+        gap: 6px;
+    }
+
+    .list-files-header-size,
+    .list-files-header-date,
+    .list-files-row-size,
+    .list-files-row-date {
+        width: 58px;
+        font-size: 10px;
+    }
+
+    .list-files-header-actions-spacer,
+    .list-files-row-actions {
+        display: none;
+    }
+}
