@@ -154,3 +154,18 @@ export function clearUnlockPasswords(udid: string): void {
     clearSavedPattern(udid);
     localStorage.removeItem(AREA_PREFIX + udid);
 }
+
+/**
+ * Whether the user opted to persist unlock passwords for this device. Read
+ * from the same behavior_<udid> object as the other toggles (ConfigureScrcpy
+ * writes it). Default: OFF — passwords are used once and discarded unless the
+ * "保存密码" toggle is explicitly enabled.
+ */
+export function isSavePasswordEnabled(udid: string): boolean {
+    try {
+        const behavior = JSON.parse(localStorage.getItem(`behavior_${udid}`) || '{}') as Record<string, unknown>;
+        return behavior['savePassword'] === true;
+    } catch {
+        return false;
+    }
+}

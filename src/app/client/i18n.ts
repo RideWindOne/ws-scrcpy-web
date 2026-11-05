@@ -158,6 +158,10 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '打开通知',
         en: 'Notifications',
     },
+    'save_password': {
+        zh: '保存密码',
+        en: 'Save password',
+    },
     'notifications_title': {
         zh: '通知',
         en: 'Notifications',

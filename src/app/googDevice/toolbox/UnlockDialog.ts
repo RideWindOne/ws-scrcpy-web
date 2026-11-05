@@ -11,11 +11,18 @@ import { t } from '../../client/i18n';
 import type { StreamClientScrcpy } from '../client/StreamClientScrcpy';
 import {
     getPatternAreaCache,
+    getSavedPattern,
+    getSavedPin,
     getUnlockMode,
     getUsePatternCache,
+    isSavePasswordEnabled,
     setPatternAreaCache,
+    setSavedPattern,
+    setSavedPin,
     setUnlockMode,
     setUsePatternCache,
+    clearSavedPin,
+    clearSavedPattern,
     type PatternArea,
 } from './unlockStore';
 import {
@@ -220,7 +227,9 @@ export class UnlockDialog extends Modal {
                 pinInput = document.createElement('input');
                 pinInput.type = 'password';
                 pinInput.inputMode = 'numeric';
-                pinInput.value = '';
+                // Pre-fill the saved PIN only when the user enabled password
+                // saving; otherwise start blank (passwords are used once).
+                pinInput.value = isSavePasswordEnabled(this.udid) ? getSavedPin(this.udid) ?? '' : '';
                 pinInput.style.cssText =
                     'width:100%;padding:6px 8px;box-sizing:border-box;font-size:15px;' +
                     'background:#1a1a1a;border:1px solid #444;color:#eee;border-radius:4px;';
@@ -235,7 +244,13 @@ export class UnlockDialog extends Modal {
             // ── Pattern tab: draw directly on the in-dialog grid ────────
             // Size selector (3x3 / 4x4 / 5x5), a draggable grid, a status
             // counter and "清空重绘 | 解锁". Drawing here never scrolls the
-            // page behind it, and the pattern stays in memory only.
+            // page behind it. When password saving is enabled, a previously
+            // saved pattern is restored so the toolbar unlock reuses it.
+            const savedPattern = isSavePasswordEnabled(this.udid) ? getSavedPattern(this.udid) : null;
+            if (savedPattern) {
+                this.patternSize = savedPattern.size;
+                this.patternPoints = [...savedPattern.points];
+            }
             const sizeRow = document.createElement('div');
             sizeRow.style.cssText =
                 'display:flex;gap:8px;justify-content:center;margin-bottom:8px;flex-wrap:wrap;';
@@ -586,6 +601,12 @@ export class UnlockDialog extends Modal {
                 await this.ensureAwake();
                 await delay(900);
                 await this.unlockWithPin(pin!);
+                // Persist or discard the PIN, per the "保存密码" toggle.
+                if (isSavePasswordEnabled(this.udid)) {
+                    setSavedPin(this.udid, pin!);
+                } else {
+                    clearSavedPin(this.udid);
+                }
             } else {
                 // Detect what the lock screen is showing now. If the pattern
                 // grid is gone (e.g. too many failed attempts made Android ask
@@ -600,6 +621,12 @@ export class UnlockDialog extends Modal {
                     return;
                 }
                 await this.unlockWithPattern(pattern!, target.area, gridSize);
+                // Persist or discard the pattern, per the "保存密码" toggle.
+                if (isSavePasswordEnabled(this.udid)) {
+                    setSavedPattern(this.udid, gridSize, pattern!);
+                } else {
+                    clearSavedPattern(this.udid);
+                }
             }
             this.showStatus(t('unlock_send_ok'));
             setTimeout(() => this.removeMiniStatus(), 3000);

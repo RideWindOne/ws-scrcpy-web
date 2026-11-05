@@ -62,6 +62,7 @@ export class ConfigureScrcpy extends Modal {
     private wakeLockCheckbox?: HTMLInputElement;
     private cleanupOnDisconnectCheckbox?: HTMLInputElement;
     private notificationsCheckbox?: HTMLInputElement;
+    private savePasswordCheckbox?: HTMLInputElement;
 
     // advancedSection is queried from DOM in populateUI, used by toggleAdvanced
     private advancedSection?: HTMLElement;
@@ -842,6 +843,34 @@ export class ConfigureScrcpy extends Modal {
             }
         });
 
+        // Save lock-screen passwords for this device (default OFF): when
+        // enabled, the unlock dialog remembers the PIN / pattern and re-fills
+        // it on later unlocks. Stored in the same behavior_<udid> object;
+        // UnlockDialog.isSavePasswordEnabled() reads it.
+        const savePasswordLabel = document.createElement('label');
+        savePasswordLabel.classList.add('label');
+        savePasswordLabel.innerText = t('save_password') + ':';
+        advancedSection.appendChild(savePasswordLabel);
+        const savePasswordCheckbox = (this.savePasswordCheckbox = document.createElement('input'));
+        savePasswordCheckbox.type = 'checkbox';
+        savePasswordCheckbox.id = savePasswordLabel.htmlFor = `save_password_${this.escapedUdid}`;
+        advancedSection.appendChild(savePasswordCheckbox);
+        savePasswordCheckbox.addEventListener('change', () => {
+            try {
+                const current = JSON.parse(localStorage.getItem(`behavior_${this.udid}`) || '{}') as Record<
+                    string,
+                    unknown
+                >;
+                current['savePassword'] = savePasswordCheckbox.checked;
+                localStorage.setItem(`behavior_${this.udid}`, JSON.stringify(current));
+            } catch {
+                localStorage.setItem(
+                    `behavior_${this.udid}`,
+                    JSON.stringify({ savePassword: savePasswordCheckbox.checked }),
+                );
+            }
+        });
+
         // Cleanup on disconnect
         const cleanupLabel = document.createElement('label');
         cleanupLabel.classList.add('label');
@@ -885,6 +914,10 @@ export class ConfigureScrcpy extends Modal {
         if (this.notificationsCheckbox) {
             // Default: on.
             this.notificationsCheckbox.checked = savedBehavior.notifications !== false;
+        }
+        if (this.savePasswordCheckbox) {
+            // Default: off (passwords are used once unless explicitly saved).
+            this.savePasswordCheckbox.checked = savedBehavior.savePassword === true;
         }
 
         // Initialize dependent checkboxes' disabled state

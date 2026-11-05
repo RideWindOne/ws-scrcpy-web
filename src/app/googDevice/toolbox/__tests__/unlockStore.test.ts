@@ -8,6 +8,7 @@ import {
     getSavedPattern,
     getSavedPin,
     getUsePatternCache,
+    isSavePasswordEnabled,
     normalizePattern,
     setPatternAreaCache,
     setSavedPattern,
@@ -98,5 +99,17 @@ describe('unlockStore (localStorage, per udid)', () => {
         expect(getSavedPattern(UDID)).toBeNull();
         expect(getPatternAreaCache(UDID)).toBeNull();
         expect(getUsePatternCache(UDID)).toBe(false);
+    });
+
+    it('password saving is OFF by default and only on when the behavior toggle is true', () => {
+        localStorage.removeItem(`behavior_${UDID}`);
+        expect(isSavePasswordEnabled(UDID)).toBe(false);
+        localStorage.setItem(`behavior_${UDID}`, JSON.stringify({ savePassword: false }));
+        expect(isSavePasswordEnabled(UDID)).toBe(false);
+        localStorage.setItem(`behavior_${UDID}`, JSON.stringify({ savePassword: true }));
+        expect(isSavePasswordEnabled(UDID)).toBe(true);
+        // Other toggles alone do not enable it.
+        localStorage.setItem(`behavior_${UDID}`, JSON.stringify({ notifications: true }));
+        expect(isSavePasswordEnabled(UDID)).toBe(false);
     });
 });
