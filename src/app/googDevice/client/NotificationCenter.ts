@@ -45,6 +45,7 @@ export class NotificationCenter {
     private unread = new Map<string, number>();
     private badgeEl?: HTMLElement;
     private countEl?: HTMLElement;
+    private panelEl?: HTMLElement;
     private lastUdid = '';
     private ticking = false;
     private audioCtx: AudioContext | null = null;
@@ -173,7 +174,66 @@ export class NotificationCenter {
         this.badgeEl = badge;
         this.countEl = count;
         document.body.appendChild(badge);
+        this.buildDevicePanel();
         this.updateBadge();
+    }
+
+    /** Dropdown listing every monitored device with its unread count; shown
+     * when more than one device is selected, so each device's notifications
+     * can be opened independently. */
+    private buildDevicePanel(): void {
+        if (this.panelEl) return;
+        const panel = document.createElement('div');
+        panel.classList.add('notify-device-panel');
+        panel.hidden = true;
+        this.panelEl = panel;
+        document.body.appendChild(panel);
+        // Close when clicking/tapping anywhere outside the panel.
+        window.addEventListener('pointerdown', (e) => {
+            if (this.panelEl && !this.panelEl.hidden && !this.panelEl.contains(e.target as Node)) {
+                this.hideDevicePanel();
+            }
+        });
+    }
+
+    private renderDevicePanel(devices: Array<{ udid: string; packages: string[] }>): void {
+        const panel = this.panelEl;
+        if (!panel) return;
+        panel.replaceChildren();
+        for (const { udid } of devices) {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.classList.add('notify-device-panel-item');
+
+            const tracker = this.tracker;
+            const descriptor = tracker ? tracker.getDescriptorByUdid(udid) : undefined;
+            const label = descriptor?.['ro.product.model'] || udid;
+
+            const name = document.createElement('span');
+            name.classList.add('notify-panel-name');
+            name.textContent = label;
+            name.title = udid;
+            item.appendChild(name);
+
+            const count = this.unread.get(udid) ?? 0;
+            if (count > 0) {
+                const badgeCount = document.createElement('span');
+                badgeCount.classList.add('notify-panel-count');
+                badgeCount.textContent = count > UNREAD_CAP ? `${UNREAD_CAP}+` : String(count);
+                item.appendChild(badgeCount);
+            }
+
+            item.addEventListener('click', () => {
+                this.hideDevicePanel();
+                this.openDeviceWindow(udid);
+            });
+            panel.appendChild(item);
+        }
+        panel.hidden = false;
+    }
+
+    private hideDevicePanel(): void {
+        if (this.panelEl) this.panelEl.hidden = true;
     }
 
     private updateBadge(): void {
@@ -182,6 +242,15 @@ export class NotificationCenter {
         this.countEl.textContent = total > UNREAD_CAP ? `${UNREAD_CAP}+` : String(total);
         this.countEl.hidden = total === 0;
         this.badgeEl.classList.toggle('notify-badge-active', total > 0);
+        // Tooltip shows per-device breakdown when several devices are monitored.
+        const parts = [...this.unread.entries()]
+            .filter(([, c]) => c > 0)
+            .map(([udid, c]) => {
+                const descriptor = this.tracker ? this.tracker.getDescriptorByUdid(udid) : undefined;
+                const label = descriptor?.['ro.product.model'] || udid;
+                return `${label} ${c > UNREAD_CAP ? `${UNREAD_CAP}+` : c}`;
+            });
+        this.badgeEl.title = parts.length > 0 ? `未读通知：${parts.join('，')}` : '未读通知';
     }
 
     private selectedDevices(): Array<{ udid: string; packages: string[] }> {
@@ -194,9 +263,22 @@ export class NotificationCenter {
                 .split(',')
                 .map((p) => p.trim())
                 .filter((p) => p.length > 0);
-            if (packages.length > 0) out.push({ udid, packages });
+            // Only devices with monitoring selected AND the notification
+            // switch on belong in the picker.
+            if (packages.length > 0 && NotificationCenter.isEnabledFor(udid)) {
+                out.push({ udid, packages });
+            }
         }
-        return out;
+        // Only devices that are actually reachable belong in the picker:
+        // a stale record for a device that is no longer connected (e.g. an
+        // old USB connection whose serial was the udid) must not show up as
+        // an opaque "black box" row in the device panel.
+        const tracker = this.tracker;
+        if (tracker) {
+            return out.filter((d) => tracker.getDescriptorByUdid(d.udid) !== undefined);
+        }
+        // Stream page: no list tracker, so restrict to the streamed device.
+        return this.lastUdid ? out.filter((d) => d.udid === this.lastUdid) : [];
     }
 
     private async tick(): Promise<void> {
@@ -249,6 +331,11 @@ export class NotificationCenter {
                 } catch {
                     // Poll errors are transient (device offline, shell busy) — keep going.
                 }
+            }
+            // Drop unread counts for devices that are no longer in the
+            // selection (stale records for disconnected devices).
+            for (const udid of [...this.unread.keys()]) {
+                if (!devices.some((d) => d.udid === udid)) this.unread.delete(udid);
             }
             this.persistUnread();
             this.updateBadge();
@@ -345,15 +432,24 @@ export class NotificationCenter {
         }
     }
 
-    /** Open the notification window for the most recently notified device. */
+    /** Open the notification window for the most recently notified device.
+     * With several monitored devices, show a picker first so each device's
+     * notifications can be opened independently. */
     private openWindow(): void {
         const devices = this.selectedDevices();
         if (devices.length === 0) return;
-        const target = devices.find((d) => d.udid === this.lastUdid) ?? devices[0];
-        if (!target) return;
+        const only = devices[0];
+        if (devices.length === 1 && only) {
+            this.openDeviceWindow(only.udid);
+            return;
+        }
+        this.renderDevicePanel(devices);
+    }
+
+    private openDeviceWindow(udid: string): void {
         const tracker = this.tracker;
-        const descriptor = tracker ? tracker.getDescriptorByUdid(target.udid) : undefined;
-        const label = descriptor?.['ro.product.model'] || target.udid;
+        const descriptor = tracker ? tracker.getDescriptorByUdid(udid) : undefined;
+        const label = descriptor?.['ro.product.model'] || udid;
         // On the stream page there is no list tracker — fall back to the
         // page's own connection parameters.
         const host = tracker ? tracker.getConnectionHost() : undefined;
@@ -361,7 +457,7 @@ export class NotificationCenter {
         const hostname = host?.hostname || location.hostname;
         const port = host?.port ?? Number(location.port || (secure ? 443 : 80));
         const params: ParamsStreamScrcpy = {
-            udid: target.udid,
+            udid,
             player: '',
             action: ACTION.STREAM_SCRCPY,
             secure,
@@ -369,9 +465,9 @@ export class NotificationCenter {
             port,
             pathname: host?.pathname ?? location.pathname,
         };
-        this.markRead(target.udid);
+        this.markRead(udid);
         void import('./NotificationModal').then(({ NotificationModal }) => {
-            new NotificationModal(target.udid, descriptor?.deviceKind, label, params);
+            new NotificationModal(udid, descriptor?.deviceKind, label, params);
         });
     }
 }
