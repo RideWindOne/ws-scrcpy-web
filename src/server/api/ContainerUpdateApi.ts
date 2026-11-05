@@ -53,7 +53,9 @@ export function readUpdateRepo(): string | null {
     } catch {
         // Not configured yet — that is a normal state.
     }
-    return null;
+    // Default to this project's own fork so a fresh container checks the
+    // right repo out of the box.
+    return 'RideWindOne/ws-scrcpy-web-arm64';
 }
 
 function writeUpdateRepo(repo: string): void {

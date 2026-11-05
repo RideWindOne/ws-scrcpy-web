@@ -23,11 +23,11 @@ describe('GithubReleaseFeedResolver', () => {
         const got = await r.resolve('bilbospocketses', 'stable');
         expect(got).toEqual({
             tag: 'v0.1.30',
-            url: 'https://github.com/bilbospocketses/ws-scrcpy-web/releases/download/v0.1.30/',
+            url: 'https://github.com/bilbospocketses/ws-scrcpy-web-arm64/releases/download/v0.1.30/',
             channel: 'stable',
         });
         expect(api.calls[0]!.url).toBe(
-            'https://api.github.com/repos/bilbospocketses/ws-scrcpy-web/releases?per_page=100&page=1',
+            'https://api.github.com/repos/bilbospocketses/ws-scrcpy-web-arm64/releases?per_page=100&page=1',
         );
     });
 
@@ -233,7 +233,7 @@ describe('GithubReleaseFeedResolver', () => {
         expect(api.calls[1]!.ifNoneMatch).toMatch(/^"p1-/);
         await r.resolve('forky', 'beta');
         expect(api.calls[2]!.ifNoneMatch).toBeNull();
-        expect(api.calls[2]!.url).toContain('/repos/forky/ws-scrcpy-web/releases');
+        expect(api.calls[2]!.url).toContain('/repos/forky/ws-scrcpy-web-arm64/releases');
     });
 
     // ── Several feeds at once: the beta channel is a superset of stable ──
@@ -247,7 +247,7 @@ describe('GithubReleaseFeedResolver', () => {
         // A plain 0.1.30 outranks 0.1.30-beta.30.
         expect(await r.resolve('bilbospocketses', ['beta', 'stable'])).toEqual({
             tag: 'v0.1.30',
-            url: 'https://github.com/bilbospocketses/ws-scrcpy-web/releases/download/v0.1.30/',
+            url: 'https://github.com/bilbospocketses/ws-scrcpy-web-arm64/releases/download/v0.1.30/',
             channel: 'stable',
         });
         expect(await r.resolve('bilbospocketses', ['linux-beta', 'linux-stable'])).toMatchObject({
@@ -313,7 +313,7 @@ describe('GithubReleaseFeedResolver', () => {
 
     it('releaseFeedUrl is the release download folder, with a trailing slash', () => {
         expect(releaseFeedUrl('bilbospocketses', 'v0.1.30-beta.166')).toBe(
-            'https://github.com/bilbospocketses/ws-scrcpy-web/releases/download/v0.1.30-beta.166/',
+            'https://github.com/bilbospocketses/ws-scrcpy-web-arm64/releases/download/v0.1.30-beta.166/',
         );
     });
 });

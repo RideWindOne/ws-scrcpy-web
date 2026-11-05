@@ -57,7 +57,7 @@ export function fakeGithubApi(initial: FakeRelease[]): FakeGithubApi {
         const headers = new Headers(init?.headers);
         calls.push({ url: url.toString(), ifNoneMatch: headers.get('If-None-Match') });
         if (refusal !== null) return new Response('{"message":"refused"}', { status: refusal });
-        if (url.host !== 'api.github.com' || !/^\/repos\/[^/]+\/ws-scrcpy-web\/releases$/.test(url.pathname)) {
+        if (url.host !== 'api.github.com' || !/^\/repos\/[^/]+\/ws-scrcpy-web-arm64\/releases$/.test(url.pathname)) {
             return new Response('not found', { status: 404 });
         }
         const perPage = Number(url.searchParams.get('per_page') ?? '30');
