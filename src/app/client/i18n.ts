@@ -834,6 +834,10 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '使用位置缓存',
         en: 'Use position cache',
     },
+    'unlock_using_saved': {
+        zh: '已记住图案，解锁时自动输入（不在屏幕上显示）',
+        en: 'Saved pattern will be used on unlock (not shown on screen)',
+    },
     'unlock_clear_cache': {
         zh: '清空位置缓存',
         en: 'Clear position cache',

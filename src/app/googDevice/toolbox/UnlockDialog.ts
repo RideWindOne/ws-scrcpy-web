@@ -246,11 +246,13 @@ export class UnlockDialog extends Modal {
             // Size selector (3x3 / 4x4 / 5x5), a draggable grid, a status
             // counter and "清空重绘 | 解锁". Drawing here never scrolls the
             // page behind it. When password saving is enabled, a previously
-            // saved pattern is restored so the toolbar unlock reuses it.
+            // saved pattern is remembered for auto-unlock but NEVER drawn on
+            // the grid — showing the connection line would leak the password.
             const savedPattern = isSavePasswordEnabled(this.udid) ? getSavedPattern(this.udid) : null;
             if (savedPattern) {
                 this.patternSize = savedPattern.size;
-                this.patternPoints = [...savedPattern.points];
+                this.patternPoints = [];
+                this.pendingPattern = { size: savedPattern.size, points: [...savedPattern.points] };
             }
             const sizeRow = document.createElement('div');
             sizeRow.style.cssText =
@@ -385,8 +387,14 @@ export class UnlockDialog extends Modal {
         unlockBtn.addEventListener('click', () => {
             unlockBtn.disabled = true;
             if (mode === 'pattern') {
-                // In-memory pattern from the grid above, used once.
-                this.pendingPattern = { size: this.patternSize, points: this.patternPoints };
+                // A freshly drawn pattern wins; otherwise fall back to the
+                // saved one, which is kept in memory and never drawn.
+                if (this.patternPoints.length >= 4) {
+                    this.pendingPattern = { size: this.patternSize, points: this.patternPoints };
+                } else if (!this.pendingPattern) {
+                    const saved = isSavePasswordEnabled(this.udid) ? getSavedPattern(this.udid) : null;
+                    if (saved) this.pendingPattern = { size: saved.size, points: [...saved.points] };
+                }
             }
             // Run in the background: hide the dialog, keep the in-video notice.
             this.minimize();
@@ -558,7 +566,12 @@ export class UnlockDialog extends Modal {
         const n = this.patternPoints.length;
         const total = this.patternSize * this.patternSize;
         if (n === 0) {
-            this.patternStatusEl.textContent = t('unlock_pattern_hint');
+            // A saved (invisible) pattern is armed: say so without drawing it.
+            if (this.pendingPattern && this.pendingPattern.points.length >= 4) {
+                this.patternStatusEl.textContent = t('unlock_using_saved');
+            } else {
+                this.patternStatusEl.textContent = t('unlock_pattern_hint');
+            }
         } else if (n < 4) {
             this.patternStatusEl.textContent = `${t('unlock_pattern_selected')}${n}/${total}`;
         } else {
