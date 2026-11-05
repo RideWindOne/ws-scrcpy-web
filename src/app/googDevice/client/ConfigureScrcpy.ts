@@ -1039,6 +1039,7 @@ export class ConfigureScrcpy extends Modal {
             wakeLock: this.wakeLockCheckbox?.checked ?? false,
             cleanupOnDisconnect: this.cleanupOnDisconnectCheckbox?.checked ?? true,
             notifications: this.notificationsCheckbox?.checked ?? true,
+            savePassword: this.savePasswordCheckbox?.checked ?? false,
         };
         localStorage.setItem(`behavior_${this.udid}`, JSON.stringify(behaviorSettings));
         if (this.saveSettingsButton) {

@@ -132,6 +132,11 @@ export function setPatternAreaCache(udid: string, area: PatternArea): void {
     writeJson(AREA_PREFIX + udid, area);
 }
 
+/** Drop the remembered pattern-grid position for a device. */
+export function clearPatternAreaCache(udid: string): void {
+    localStorage.removeItem(AREA_PREFIX + udid);
+}
+
 /** Whether later unlocks should reuse the last detected pattern area. Default: on. */
 export function getUsePatternCache(udid: string): boolean {
     return localStorage.getItem(USE_CACHE_PREFIX + udid) !== '0';

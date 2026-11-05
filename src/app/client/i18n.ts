@@ -834,6 +834,14 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '使用位置缓存',
         en: 'Use position cache',
     },
+    'unlock_clear_cache': {
+        zh: '清空位置缓存',
+        en: 'Clear position cache',
+    },
+    'unlock_cache_cleared': {
+        zh: '已清空',
+        en: 'Cleared',
+    },
     'unlock_need_pattern': {
         zh: '请先绘制图案',
         en: 'Draw a pattern first',

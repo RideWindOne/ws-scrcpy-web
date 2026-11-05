@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+    clearPatternAreaCache,
     clearUnlockPasswords,
     clearUnlockStore,
     getPatternAreaCache,
@@ -61,6 +62,8 @@ describe('unlockStore (localStorage, per udid)', () => {
         const area = { left: 216, top: 480, width: 648, height: 648 };
         setPatternAreaCache(UDID, area);
         expect(getPatternAreaCache(UDID)).toEqual(area);
+        clearPatternAreaCache(UDID);
+        expect(getPatternAreaCache(UDID)).toBeNull();
     });
 
     it('is scoped per udid', () => {

@@ -10,6 +10,7 @@ import { TextControlMessage } from '../../controlMessage/TextControlMessage';
 import { t } from '../../client/i18n';
 import type { StreamClientScrcpy } from '../client/StreamClientScrcpy';
 import {
+    clearPatternAreaCache,
     getPatternAreaCache,
     getSavedPattern,
     getSavedPin,
@@ -333,7 +334,7 @@ export class UnlockDialog extends Modal {
             // Use position cache toggle (Screen-Remote style), centered
             const cacheRow = document.createElement('label');
             cacheRow.style.cssText =
-                'display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:#aaa;margin-top:8px;cursor:pointer;';
+                'display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:#aaa;margin-top:8px;cursor:pointer;flex-wrap:wrap;';
             const cacheCheck = document.createElement('input');
             cacheCheck.type = 'checkbox';
             cacheCheck.checked = getUsePatternCache(this.udid);
@@ -344,6 +345,17 @@ export class UnlockDialog extends Modal {
             cacheText.textContent = t('unlock_use_cache');
             cacheRow.appendChild(cacheCheck);
             cacheRow.appendChild(cacheText);
+            const clearCacheBtn = document.createElement('button');
+            clearCacheBtn.type = 'button';
+            clearCacheBtn.className = 'modal-button';
+            clearCacheBtn.textContent = t('unlock_clear_cache');
+            clearCacheBtn.style.cssText =
+                'min-height:32px;padding:2px 10px;font-size:12px;color:#d08;';
+            clearCacheBtn.addEventListener('click', () => {
+                clearPatternAreaCache(this.udid);
+                clearCacheBtn.textContent = t('unlock_cache_cleared');
+            });
+            cacheRow.appendChild(clearCacheBtn);
             bodyWrap.appendChild(cacheRow);
 
             const clearBtn = document.createElement('button');
@@ -474,6 +486,10 @@ export class UnlockDialog extends Modal {
                 if (findPinInput(xml)) return { kind: 'pin' };
             } else {
                 this.showStatus(`${t('unlock_detect_error')}: ${error ?? ''}`);
+                // The dump failed but we have a remembered grid: trust the
+                // cached position instead of another long poll — the cache is
+                // exactly what this is for.
+                return { kind: 'pattern', area: cached };
             }
         }
         this.showStatus(t('unlock_detecting'));
