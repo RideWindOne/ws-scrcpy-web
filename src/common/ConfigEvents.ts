@@ -154,7 +154,7 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
     autoUpdate: true,
     updateCheckIntervalMinutes: 60,
     channel: 'stable',
-    githubOwner: 'bilbospocketses',
+    githubOwner: 'RideWindOne',
     webPort: 8000,
     allowRemoteAdmin: false,
 };
