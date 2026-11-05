@@ -55,7 +55,7 @@ export const RELEASES_PER_PAGE = 100;
  */
 export const MAX_RELEASE_PAGES = 10;
 
-const REPO = 'ws-scrcpy-web-arm64';
+const REPO = 'ws-scrcpy-web';
 
 /** The release Velopack should read, the folder its assets download from, and the feed it was chosen for. */
 export interface ResolvedReleaseFeed {

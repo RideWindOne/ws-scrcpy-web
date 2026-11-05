@@ -19,13 +19,13 @@ export const RELEASE_URL_BASE_ENV = 'WS_SCRCPY_RELEASE_URL_BASE';
 
 /**
  * The prefix a release's assets live under. Without an override this is GitHub's own
- * `https://github.com/<owner>/ws-scrcpy-web-arm64/releases/download`; with one, the override
+ * `https://github.com/<owner>/ws-scrcpy-web/releases/download`; with one, the override
  * (trailing slashes dropped), so the layout under it is the same: `<base>/v<version>/<asset>`.
  */
 export function releaseDownloadBase(githubOwner: string, override?: string): string {
     const trimmed = override?.trim();
     if (trimmed) return trimmed.replace(/\/+$/, '');
-    return `https://github.com/${githubOwner}/ws-scrcpy-web-arm64/releases/download`;
+    return `https://github.com/${githubOwner}/ws-scrcpy-web/releases/download`;
 }
 
 /** Release asset download URL for a given version tag (`v<version>`), under `releaseDownloadBase`. */
