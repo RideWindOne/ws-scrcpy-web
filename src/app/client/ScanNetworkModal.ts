@@ -232,6 +232,8 @@ export class ScanNetworkModal extends Modal {
             li.style.cssText = 'padding: 4px 0; display: flex; justify-content: space-between; align-items: center;';
             const label = document.createElement('span');
             label.textContent = `${row.normalized} — ${row.hostCount.toLocaleString()} host${row.hostCount === 1 ? '' : 's'} (${row.annotation})`;
+            // Keep the monospace CIDR line inside the frame on phones.
+            label.style.cssText = 'min-width: 0; overflow-wrap: anywhere; padding-right: 6px;';
             li.appendChild(label);
             if (row.removable) {
                 const actions = document.createElement('span');
