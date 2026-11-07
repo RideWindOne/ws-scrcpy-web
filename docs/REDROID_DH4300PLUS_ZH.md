@@ -135,6 +135,8 @@ docker run -d \
 > ```
 >
 > 路径要落在**数据卷里**（`/volume1/docker/data` 对应容器内 `/data`），权限不对 adbd 读不到同样会拒绝；已经有 adb 授权记录的机器，直接把现成的 `adb_keys` 拷过来即可。
+>
+> `1000:2000` 是 Android 固定的 uid/gid：`1000` = `system`（系统服务），`2000` = `shell`（adb 与调试 shell 用户）。AOSP 里 `/data/misc/adb` 目录建出来就是 `system:shell 02750`（带 setgid），系统服务在里面写 `adb_keys` 时属组自动继承成 `shell`，再把权限设成 `0640`；而 adbd 以 shell 身份读这个文件，所以必须是“system 所有、shell 组可读”。写成 `root:root` 或只给 600，adbd 读不到就等于没放公钥。容器不做 uid 重映射，所以在宿主上直接 `chown 1000:2000` 落盘就是容器里的 system:shell，跟 NAS 上 1000 号是哪个用户无关。
 
 
 等它起完（一般 40–60 秒）：
