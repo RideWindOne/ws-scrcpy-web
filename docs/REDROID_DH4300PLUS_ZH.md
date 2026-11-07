@@ -121,9 +121,21 @@ docker run -d \
 | `-v /dev/mali0` | Mali GPU，缺了没硬加速 |
 | `-v /dev/mpp_service`、`/dev/rga` | VPU 硬编解与图像处理 |
 | `-v /dev/dma_heap/system`、`/dev/dma_heap/cma` | 图形缓冲的堆 |
-| `androidboot.redroid_gpu_mode=mali` | 强制走 Mali，缺了黑屏或软渲染 |
 | `ro.adb.secure=0` | 免授权即可被 ws-scrcpy-web / adb 连上 |
 | `androidboot.serialno="$SN"` | 设备身份，随机生成，避免多设备重名 |
+
+> **想改成 `ro.adb.secure=1`（要求 adb 授权）时**，必须先把公钥放进去，否则连不上——设备停在"未授权"，ws-scrcpy-web 里表现就是连不进去或报 `unauthorized`：
+>
+> ```bash
+> mkdir -p /volume1/docker/data/misc/adb
+> cat ~/.android/adbkey.pub > /volume1/docker/data/misc/adb/adb_keys
+> chmod 640 /volume1/docker/data/misc/adb/adb_keys
+> chown 1000:2000 /volume1/docker/data/misc/adb/adb_keys
+> docker restart redroid
+> ```
+>
+> 路径要落在**数据卷里**（`/volume1/docker/data` 对应容器内 `/data`），权限不对 adbd 读不到同样会拒绝；已经有 adb 授权记录的机器，直接把现成的 `adb_keys` 拷过来即可。
+
 
 等它起完（一般 40–60 秒）：
 
@@ -236,7 +248,7 @@ docker run -d \
 ```
 
 - `/data` 是它的全部家当（配置、用户、密码、依赖、日志都在里面），**必须挂持久卷**，重建容器才能不丢；
-- `-p 8000:8000` 让局域网能打开设置页，浏览器 `http://<NAS_IP>:8000`；
+- `-p 8000:8000` 让局域网能打开设置页，浏览器 `http://<NAS_IP>:8000`（这个裸端口只能设置和看列表，要远程操作图形界面还得按 5.4 挂 HTTPS 反代）；
 - `-e WS_SCRCPY_ALLOW_REMOTE_ADMIN=1` 是**临时**放行管理接口——容器里的管理操作默认只认本机回环，经端口映射进来会被判"非本机"而拒绝，不放开就没法设密码。设完按 5.2 删掉重建，这个参数不再带；
 - 等 30 秒左右，`docker ps` 看到 `(healthy)` 就绪。这期间端口是无密码状态，只在内网短暂存在，尽快做 5.2。
 
@@ -305,9 +317,28 @@ docker run -d \
 
 重建后原来的账号密码照旧生效；要换密码，登录后在 设置 → 用户 里改即可（也可以按 5.2 的流程重来一次：加参数建 → 设新密码 → 去掉参数重建）。
 
-### 5.4 在网页里添加设备
+### 5.4 远程连接需要 HTTPS 反代（否则只能看到设备）
 
-1. 浏览器打开（隧道或局域网地址），登录；
+ws-scrcpy-web 的远程画面走浏览器里的 WebSocket + 播放器，**在非安全上下文（纯 `http://IP:8000`）下浏览器会拦住相关能力**，症状很典型：设备列表能看到、在线状态也对，但点进去连不上、一直转圈或报错。所以局域网裸端口只适合"设置密码 + 看列表"，真正要远程操作得挂到 HTTPS 后面。
+
+三条现成路径：
+
+| 平台 | 做法 |
+|---|---|
+| 绿联 UGOS | 用 Docker 应用自带的**内网穿透**（自动就是 HTTPS 反代），把 ws-scrcpy-web 的 `8000` 加进去即可，不用自己配证书 |
+| 飞牛 fnOS、极空间 T2S | 同理，用系统自带的穿透/反代功能指向 `NAS_IP:8000` 或 `127.0.0.1:8000` |
+| 任意平台 | 自建：**Lucky**（或 Nginx Proxy Manager）配一条 HTTPS 反代到 `http://NAS_IP:8000` |
+
+反代几个要点：
+
+- **必须开 WebSocket 升级**（`Upgrade` / `Connection` 头透传），否则进不去画面；
+- 代理到**根路径**，别加 `/ws-scrcpy/` 之类前缀，这应用不认子路径；
+- 长连接超时调大（读超时 ≥ 300 秒），否则看几分钟就断；
+- 反代用的域名要写进 `/volume1/docker/wsdata/config.json` 的 `allowedHosts`，例如 `{"allowedHosts":["*.ugdocker.link","*.fnos.net"]}`，未在名单里的域名会被拒；改完重建容器。
+
+### 5.5 在网页里添加设备
+
+1. 浏览器打开（HTTPS 反代域名，或本地 `http://<NAS_IP>:8000`），登录；
 2. 添加设备，填 `127.0.0.1:5555`（如果 ws-scrcpy-web 与 redroid 在**同一台** NAS 上且用 host 网络）或 `<NAS_IP>:5555`；
 3. 设备名默认取自序列号，多台容器不会重名——这就是第三步用随机 `serialno` 的原因；想改名字在设备卡片上直接编辑。
 
@@ -336,7 +367,7 @@ dmesg | grep -c "Internal error"                          # 0
 |---|---|
 | `insmod: File exists` | 模块已加载，跳过即可 |
 | 容器内只有 `system`、`cma` | `rk_dma32_heap` 没加载，`lsmod` 确认后看 `dmesg` |
-| 容器黑屏 | 少绑 `/dev/mali0`，或没加 `androidboot.redroid_gpu_mode=mali` |
+| 容器黑屏 | 少绑 `/dev/mali0`；或宿主没有 Mali 设备节点，`ls /dev/mali0` 不存在 |
 | `boot_completed` 一直不置 1 | `docker logs redroid`，多数是 binderfs 没 mount（缺 `--privileged`） |
 | 重启后模块不见了 | 模块放到了 `/lib/modules`，被系统分区重置；移到数据盘并确认服务已 enable |
 | ws-scrcpy-web 打开只有设备列表、没有管理按钮 | 没开登录且不是本机访问；按 5.2 开登录 |
