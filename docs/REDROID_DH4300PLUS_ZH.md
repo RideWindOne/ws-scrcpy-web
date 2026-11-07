@@ -106,7 +106,6 @@ docker run -d \
   androidboot.redroid_height=2400 \
   androidboot.redroid_dpi=440 \
   androidboot.redroid_fps=60 \
-  androidboot.redroid_gpu_mode=mali \
   androidboot.redroid_fake_wifi=1 \
   androidboot.redroid_enable_input_subsys=1 \
   androidboot.serialno="$SN" \
