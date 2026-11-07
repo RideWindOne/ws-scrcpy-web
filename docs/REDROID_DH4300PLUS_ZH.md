@@ -389,8 +389,7 @@ rmmod rk_dma32_heap
 
 ---
 
-## 九、三条硬性禁忌
+## 九、两条硬性禁忌
 
-1. **不要把 binderfs 写进 `/etc/fstab`**。它依赖运行时加载的模块，写进 fstab 后重启会卡进 emergency mode，整机 SSH/Web 全断，只能接显示器救。容器里 mount 就够了。
-2. **模块不要放 `/lib/modules`**。UGOS 系统分区重启会重置，放数据盘才留得住。
-3. **不要在 `media_serv` / `hetero_core` 运行时 `rmmod rk_dma32_heap`**，画面会立刻黑掉甚至重启。
+1. **模块不要放 `/lib/modules`**。UGOS 系统分区重启会重置，放数据盘才留得住。
+2. **不要在 `media_serv` / `hetero_core` 运行时 `rmmod rk_dma32_heap`**，画面会立刻黑掉甚至重启。
