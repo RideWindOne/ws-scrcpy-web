@@ -63,24 +63,103 @@ export function parseUiHierarchy(xml: string): UiNode[] {
     return nodes;
 }
 
-/** Find the pattern grid rectangle, or null. */
-export function findPatternArea(xml: string): PatternArea | null {
+/**
+ * Device display size in the dump's coordinate space. uiautomator reports
+ * bounds in device pixels, while scrcpy's touch events are expressed in the
+ * video-frame coordinate space — those differ whenever max_size downscales
+ * the stream (e.g. 1080x2400 device streamed as 864x1920). The largest node
+ * bounds (the root window) gives us the device side.
+ */
+export function detectDisplaySize(xml: string): { width: number; height: number } | null {
+    let width = 0;
+    let height = 0;
     for (const node of parseUiHierarchy(xml)) {
-        if (
-            node.bounds &&
-            (PATTERN_CLASS_RE.test(node.className) || PATTERN_CLASS_RE.test(node.resourceId))
-        ) {
-            return node.bounds;
+        const b = node.bounds;
+        if (!b) continue;
+        // Root/status-bar/nav-bar style nodes start at the screen origin and,
+        // taken together, span the whole display. A widget floating in the
+        // middle (left/top > 0) tells us nothing about the display size.
+        if (b.left <= 4 && b.top <= 4) {
+            if (b.left + b.width > width) width = b.left + b.width;
+            if (b.top + b.height > height) height = b.top + b.height;
         }
     }
-    return null;
+    return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/**
+ * Translate a dump (device-pixel) rectangle into the video-frame coordinate
+ * space the touch injector expects. Without a known display size the rectangle
+ * is used as-is (video and device sizes usually match unless max_size is set).
+ */
+export function scaleAreaToVideo(
+    area: PatternArea,
+    display: { width: number; height: number } | null,
+    videoWidth: number,
+    videoHeight: number,
+): PatternArea {
+    if (!display || display.width <= 0 || display.height <= 0) return area;
+    if (videoWidth <= 0 || videoHeight <= 0) return area;
+    if (display.width === videoWidth && display.height === videoHeight) return area;
+    const sx = videoWidth / display.width;
+    const sy = videoHeight / display.height;
+    return {
+        left: Math.round(area.left * sx),
+        top: Math.round(area.top * sy),
+        width: Math.round(area.width * sx),
+        height: Math.round(area.height * sy),
+    };
+}
+
+/**
+ * Find the pattern grid rectangle, or null.
+ *
+ * Several nodes can carry "LockPattern"/"PatternView" in their class or id —
+ * a wrapper container at the top of the tree and the real 3x3 grid inside it.
+ * Containers are usually not square and may span most of the screen, so the
+ * pick is scored: a `LockPatternView` class beats a matching resource id, and
+ * a square-ish, non-fullscreen rectangle beats a wide/tall one. Choosing the
+ * wrapper would shift every injected dot away from the drawn pattern.
+ */
+export function findPatternArea(xml: string): PatternArea | null {
+    const display = detectDisplaySize(xml);
+    const screenArea = display ? display.width * display.height : 0;
+    let best: { area: PatternArea; score: number } | null = null;
+    for (const node of parseUiHierarchy(xml)) {
+        const b = node.bounds;
+        if (!b) continue;
+        const byClass = PATTERN_CLASS_RE.test(node.className);
+        const byId = PATTERN_CLASS_RE.test(node.resourceId);
+        if (!byClass && !byId) continue;
+        // A real grid is roughly square; a parent container is not.
+        const aspect = b.width / b.height;
+        if (aspect < 0.75 || aspect > 1.33) continue;
+        // Skip a rectangle that covers most of the screen (a dialog/window root).
+        if (screenArea > 0 && b.width * b.height > screenArea * 0.7) continue;
+        const score = (byClass ? 10 : 0) + (1 - Math.abs(1 - aspect));
+        if (!best || score > best.score) best = { area: b, score };
+    }
+    return best ? best.area : null;
+}
+
+/**
+ * The PIN/password field rectangle, or null. Prefer a real EditText (the field
+ * the text must land in); fall back to vendor PIN views. The rectangle is what
+ * lets us focus the field before injecting text — typing into a lock screen
+ * with no focused input silently goes nowhere.
+ */
+export function findPinInputArea(xml: string): PatternArea | null {
+    const candidates = parseUiHierarchy(xml).filter(
+        (n) => n.bounds && (PIN_CLASS_RE.test(n.className) || PIN_CLASS_RE.test(n.resourceId)),
+    );
+    const editText = candidates.find((n) => /EditText/i.test(n.className));
+    const chosen = editText ?? candidates[0];
+    return chosen ? chosen.bounds : null;
 }
 
 /** Whether a PIN/password text field is present. */
 export function findPinInput(xml: string): boolean {
-    return parseUiHierarchy(xml).some(
-        (n) => n.bounds && (PIN_CLASS_RE.test(n.className) || PIN_CLASS_RE.test(n.resourceId)),
-    );
+    return findPinInputArea(xml) !== null;
 }
 
 /** Result of one UI-hierarchy probe: the XML, or the server-reported error. */
@@ -172,8 +251,8 @@ export async function pollForPatternArea(
  * "a PIN field is on screen now" — the unlock flow must handle both.
  */
 export type UnlockTarget =
-    | { kind: 'pattern'; area: PatternArea }
-    | { kind: 'pin' }
+    | { kind: 'pattern'; area: PatternArea; display: { width: number; height: number } | null }
+    | { kind: 'pin'; area: PatternArea | null; display: { width: number; height: number } | null }
     | { kind: 'none'; area: PatternArea };
 
 /**
@@ -188,7 +267,10 @@ export async function pollForUnlockTarget(
     options: {
         timeoutMs?: number;
         pollMs?: number;
-        onDetected?: (area: PatternArea) => void;
+        onDetected?: (
+            area: PatternArea,
+            display: { width: number; height: number } | null,
+        ) => void;
         onKeepAwake?: () => void;
         onError?: (error: string) => void;
     } = {},
@@ -200,13 +282,15 @@ export async function pollForUnlockTarget(
     while (Date.now() - start < timeoutMs) {
         const { xml, error } = await fetchUiHierarchy(udid);
         if (xml) {
+            const display = detectDisplaySize(xml);
             const area = findPatternArea(xml);
             if (area) {
-                options.onDetected?.(area);
-                return { kind: 'pattern', area };
+                options.onDetected?.(area, display);
+                return { kind: 'pattern', area, display };
             }
-            if (findPinInput(xml)) {
-                return { kind: 'pin' };
+            const pinArea = findPinInputArea(xml);
+            if (pinArea) {
+                return { kind: 'pin', area: pinArea, display };
             }
         } else if (error && rounds === 0) {
             options.onError?.(error);

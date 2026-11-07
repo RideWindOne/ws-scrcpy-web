@@ -27,11 +27,13 @@ import {
     type PatternArea,
 } from './unlockStore';
 import {
+    detectDisplaySize,
     fetchUiHierarchy,
     findPatternArea,
-    findPinInput,
+    findPinInputArea,
     patternPointCoordinates,
     pollForUnlockTarget,
+    scaleAreaToVideo,
     type UnlockTarget,
 } from './patternLockDetect';
 
@@ -489,26 +491,60 @@ export class UnlockDialog extends Modal {
         if (cached) {
             const { xml, error } = await fetchUiHierarchy(this.udid);
             if (xml) {
+                const display = detectDisplaySize(xml);
                 const area = findPatternArea(xml);
-                if (area) return { kind: 'pattern', area };
-                if (findPinInput(xml)) return { kind: 'pin' };
+                if (area) return { kind: 'pattern', area, display };
+                const pinArea = findPinInputArea(xml);
+                if (pinArea) return { kind: 'pin', area: pinArea, display };
             } else {
                 this.showStatus(`${t('unlock_detect_error')}: ${error ?? ''}`);
                 // The dump failed but we have a remembered grid: trust the
                 // cached position instead of another long poll — the cache is
-                // exactly what this is for.
-                return { kind: 'pattern', area: cached };
+                // exactly what this is for. Its display size (when stored) lets
+                // us still map it correctly onto a downscaled video frame.
+                const display =
+                    cached.displayWidth && cached.displayHeight
+                        ? { width: cached.displayWidth, height: cached.displayHeight }
+                        : null;
+                return { kind: 'pattern', area: cached, display };
             }
         }
         this.showStatus(t('unlock_detecting'));
         return pollForUnlockTarget(this.udid, this.screenWidth, this.screenHeight, {
-            onDetected: (detected) => setPatternAreaCache(this.udid, detected),
+            onDetected: (detected, display) => {
+                const area: PatternArea = { ...detected };
+                if (display) {
+                    area.displayWidth = display.width;
+                    area.displayHeight = display.height;
+                }
+                setPatternAreaCache(this.udid, area);
+            },
             // Probing can take tens of seconds; keep the screen awake.
             onKeepAwake: () => {
                 void this.ensureAwake();
             },
             onError: (error) => this.showStatus(`${t('unlock_detect_error')}: ${error}`),
         });
+    }
+
+    /**
+     * One dump to locate the numeric PIN field so it can be tapped before
+     * typing. Returns null when the field is not visible (the unlock then falls
+     * back to typing into whatever has focus, as before).
+     */
+    private async detectPinField(): Promise<{
+        area: PatternArea;
+        display: { width: number; height: number } | null;
+    } | null> {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const { xml } = await fetchUiHierarchy(this.udid);
+            if (xml) {
+                const area = findPinInputArea(xml);
+                if (area) return { area, display: detectDisplaySize(xml) };
+            }
+            await delay(400);
+        }
+        return null;
     }
 
     /** (Re)paint the pattern grid dots + connection line from patternPoints. */
@@ -583,8 +619,12 @@ export class UnlockDialog extends Modal {
         pattern: number[],
         area: PatternArea,
         gridSize: number = 3,
+        display: { width: number; height: number } | null = null,
     ): Promise<void> {
-        const points = pattern.map((idx) => patternPointCoordinates(area, idx, gridSize));
+        // uiautomator bounds are device pixels; touch events travel in the
+        // video-frame space. Convert before mapping dots to coordinates.
+        const videoArea = scaleAreaToVideo(area, display, this.screenWidth, this.screenHeight);
+        const points = pattern.map((idx) => patternPointCoordinates(videoArea, idx, gridSize));
         const first = points[0]!;
         const last = points[points.length - 1]!;
 
@@ -600,8 +640,22 @@ export class UnlockDialog extends Modal {
         await delay(150);
     }
 
-    private async unlockWithPin(pin: string): Promise<void> {
+    private async unlockWithPin(
+        pin: string,
+        field: { area: PatternArea; display: { width: number; height: number } | null } | null = null,
+    ): Promise<void> {
         this.showStatus(t('unlock_injecting'));
+        if (field) {
+            // Focus the field first: typing into an unfocused lock screen
+            // lands in the wrong place (or nowhere at all).
+            const videoArea = scaleAreaToVideo(field.area, field.display, this.screenWidth, this.screenHeight);
+            const cx = Math.round(videoArea.left + videoArea.width / 2);
+            const cy = Math.round(videoArea.top + videoArea.height / 2);
+            this.touch(MotionEvent.ACTION_DOWN, cx, cy);
+            await delay(60);
+            this.touch(MotionEvent.ACTION_UP, cx, cy);
+            await delay(400);
+        }
         this.client.sendMessage(new TextControlMessage(pin));
         await delay(200);
         this.sendKey(KeyEvent.KEYCODE_ENTER);
@@ -625,11 +679,12 @@ export class UnlockDialog extends Modal {
             await this.wakeAndSwipeUp();
 
             if (mode === 'pin') {
-                // A numeric PIN needs no on-screen field detection: wake the
-                // lock UI, then type straight into it.
+                // Wake the lock UI, find the PIN field, tap it (so the text
+                // lands in the right place), then type.
                 await this.ensureAwake();
                 await delay(900);
-                await this.unlockWithPin(pin!);
+                const pinField = await this.detectPinField();
+                await this.unlockWithPin(pin!, pinField);
                 // Persist or discard the PIN, per the "保存密码" toggle.
                 if (isSavePasswordEnabled(this.udid)) {
                     setSavedPin(this.udid, pin!);
@@ -649,7 +704,12 @@ export class UnlockDialog extends Modal {
                     setTimeout(() => this.removeMiniStatus(), 6000);
                     return;
                 }
-                await this.unlockWithPattern(pattern!, target.area, gridSize);
+                await this.unlockWithPattern(
+                    pattern!,
+                    target.area,
+                    gridSize,
+                    target.kind === 'pattern' ? target.display : null,
+                );
                 // Persist or discard the pattern, per the "保存密码" toggle.
                 if (isSavePasswordEnabled(this.udid)) {
                     setSavedPattern(this.udid, gridSize, pattern!);

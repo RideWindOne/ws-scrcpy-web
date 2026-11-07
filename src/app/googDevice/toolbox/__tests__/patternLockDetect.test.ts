@@ -3,11 +3,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
     defaultPatternArea,
+    detectDisplaySize,
     findPatternArea,
     findPinInput,
+    findPinInputArea,
     parseUiHierarchy,
     patternPointCoordinates,
     pollForUnlockTarget,
+    scaleAreaToVideo,
 } from '../patternLockDetect';
 
 const LOCK_XML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -56,8 +59,68 @@ describe('findPatternArea', () => {
         expect(findPatternArea(xml)).toEqual({ left: 100, top: 200, width: 300, height: 300 });
     });
 
+    it('prefers the square grid over a non-square wrapper with the same id', () => {
+        // A container carrying "lockPattern" in its id but stretching most of
+        // the screen must not win — the injected dots would be way off.
+        const xml = `<hierarchy rotation="0">
+  <node class="android.widget.FrameLayout" resource-id="" bounds="[0,0][1080,2400]">
+    <node class="android.widget.FrameLayout" resource-id="com.android.systemui:id/lockPatternContainer" bounds="[0,120][1080,2400]">
+      <node class="com.android.internal.widget.LockPatternView" resource-id="com.android.systemui:id/lockPattern" bounds="[216,750][864,1398]"/>
+    </node>
+  </node>
+</hierarchy>`;
+        expect(findPatternArea(xml)).toEqual({ left: 216, top: 750, width: 648, height: 648 });
+    });
+
     it('returns null when no pattern node exists', () => {
         expect(findPatternArea(PIN_XML)).toBeNull();
+    });
+});
+
+describe('detectDisplaySize', () => {
+    it('reads the device display size from the root window bounds', () => {
+        expect(detectDisplaySize(LOCK_XML)).toEqual({ width: 1080, height: 1920 });
+    });
+
+    it('returns null when no root-sized bounds exist', () => {
+        expect(detectDisplaySize('<node class="x" bounds="[100,200][400,500]"/>')).toBeNull();
+    });
+});
+
+describe('scaleAreaToVideo', () => {
+    it('maps device pixels onto a downscaled video frame', () => {
+        // 1080x2400 device streamed at 864x1920 (max_size 1920).
+        const area = { left: 216, top: 750, width: 648, height: 648 };
+        const video = scaleAreaToVideo(area, { width: 1080, height: 2400 }, 864, 1920);
+        expect(video).toEqual({ left: 173, top: 600, width: 518, height: 518 });
+    });
+
+    it('leaves the rectangle untouched when sizes already match', () => {
+        const area = { left: 216, top: 750, width: 648, height: 648 };
+        expect(scaleAreaToVideo(area, { width: 1080, height: 2400 }, 1080, 2400)).toEqual(area);
+    });
+
+    it('leaves it untouched without a known display size', () => {
+        const area = { left: 1, top: 2, width: 3, height: 4 };
+        expect(scaleAreaToVideo(area, null, 864, 1920)).toEqual(area);
+    });
+});
+
+describe('findPinInputArea', () => {
+    it('returns the PIN field bounds so it can be tapped before typing', () => {
+        expect(findPinInputArea(PIN_XML)).toEqual({ left: 240, top: 900, width: 600, height: 60 });
+    });
+
+    it('prefers an EditText over a vendor PIN view', () => {
+        const xml = `<node class="android.widget.FrameLayout" bounds="[0,0][1080,1920]">
+  <node class="com.android.systemui.PinKeyguard" resource-id="vendor:pinEntry" bounds="[100,700][980,860]"/>
+  <node class="android.widget.EditText" resource-id="com.android.systemui:id/passwordEntry" bounds="[240,900][840,960]"/>
+</node>`;
+        expect(findPinInputArea(xml)).toEqual({ left: 240, top: 900, width: 600, height: 60 });
+    });
+
+    it('returns null on a pattern screen', () => {
+        expect(findPinInputArea(LOCK_XML)).toBeNull();
     });
 });
 

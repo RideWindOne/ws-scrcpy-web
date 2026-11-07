@@ -35,6 +35,14 @@ export interface PatternArea {
     top: number;
     width: number;
     height: number;
+    /**
+     * Device display size this rectangle was measured in. uiautomator bounds
+     * are device pixels while touch events travel in the video-frame space, so
+     * keeping this lets a cached position still be scaled when a later dump
+     * fails. Optional: older entries (and default areas) have none.
+     */
+    displayWidth?: number;
+    displayHeight?: number;
 }
 
 function readJson<T>(key: string): T | null {
