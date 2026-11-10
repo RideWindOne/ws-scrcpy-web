@@ -539,6 +539,7 @@ export class StreamClientScrcpy
         };
         window.addEventListener('resize', onViewportResize);
         document.addEventListener('fullscreenchange', onViewportResize);
+        document.addEventListener('webkitfullscreenchange', onViewportResize);
         document.addEventListener('orientationchange', onViewportResize);
         const stop = (ev?: string | Event) => {
             if (ev && ev instanceof Event && ev.type === 'error') {
@@ -550,6 +551,7 @@ export class StreamClientScrcpy
             hideFullscreenToolbar();
             window.removeEventListener('resize', onViewportResize);
             document.removeEventListener('fullscreenchange', onViewportResize);
+            document.removeEventListener('webkitfullscreenchange', onViewportResize);
             document.removeEventListener('orientationchange', onViewportResize);
             const parent = deviceView.parentElement;
             if (parent) parent.removeChild(deviceView);

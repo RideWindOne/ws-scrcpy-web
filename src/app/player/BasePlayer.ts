@@ -423,7 +423,9 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
             frame?.style.removeProperty('height');
         };
         const inModal = !!dialog;
-        const inFullscreen = !!document.fullscreenElement;
+        const inFullscreen = !!(document.fullscreenElement ?? (document as Document & {
+            webkitFullscreenElement?: Element | null;
+        }).webkitFullscreenElement);
         if (!inModal && !inFullscreen) {
             reset();
             return;
@@ -435,10 +437,18 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
             return;
         }
 
-        // Available box. Fullscreen is measurable directly; the modal frame hugs
-        // the picture, so there is nothing to measure before the size is known —
-        // derive it from the viewport the same way modal.css caps it
-        // (max-width: 100vw - 24, max-height: 90vh) minus the 1px border.
+        // Clear the previous inline sizes before measuring: in fullscreen the box
+        // comes from the parent, and a leftover inline width/height would make
+        // `clientWidth/clientHeight` report the *old* size — the picture would then
+        // be "re-fitted" to itself and never grow, which is why a leftover modal
+        // fit kept it top-aligned with a large gap at the bottom.
+        reset();
+
+        // Available box. Fullscreen is the parent's content box (padding from
+        // env(safe-area-inset-*) keeps the picture clear of the notch/status bar);
+        // the modal frame hugs the picture, so there is nothing to measure before
+        // the size is known — derive it from the viewport the same way modal.css
+        // caps it (max-width: 100vw - 24, max-height: 90vh) minus the 1px border.
         let availWidth: number;
         let availHeight: number;
         if (inFullscreen) {
