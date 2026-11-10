@@ -548,14 +548,27 @@ dialog.connect-modal .modal-body {
  * ws-scrcpy.css and is shared with embed.html. The modal-body above is the
  * flex parent that gives .device-view its box.
  *
- * The modal still needs to cap the canvas layers: StreamClientScrcpy.getMaxSize()
- * bounds the canvas to window.innerWidth/Height, but the modal-frame is
- * constrained to max 95vw × 90vh. Without these caps, the canvas overflows the
- * frame and gets clipped by the modal-body's `overflow: hidden`. */
+ * Sizing chain: the frame caps at 90vh, the body takes the remaining height
+ * (flex:1, min-height:0), .device-view and .video stretch to it, so the grid
+ * cell has a definite height and the canvas can be capped to it as a
+ * percentage. `.video-layer` IS the canvas itself (BaseCanvasBasedPlayer tags
+ * the canvas) and `.touch-layer` is the sibling touch canvas, so capping both
+ * axes scales them down keeping the device aspect ratio instead of clipping —
+ * never set width/height:100% here, that would stretch the picture. The touch
+ * handler maps taps from the displayed rect and already letterboxes, so input
+ * stays accurate. (A viewport-based cap cannot express this box: it is 90vh
+ * minus the modal header, i.e. a parent-relative height.) */
+dialog.connect-modal .video {
+    width: 100%;
+    height: 100%;
+}
+
 dialog.connect-modal .video-layer,
 dialog.connect-modal .touch-layer {
-    max-width: calc(95vw - 3.715rem);
-    max-height: calc(90vh - 2.5rem);
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
 }
 
 /* ── List files modal overrides ── */

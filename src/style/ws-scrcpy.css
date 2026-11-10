@@ -104,6 +104,23 @@
     max-height: 100vh;
 }
 
+/* `.video-layer` is the canvas itself (BaseCanvasBasedPlayer tags the canvas
+ * with that class) and `.touch-layer` is the stacked touch canvas, so their
+ * intrinsic size is the device's pixel size — far taller than a phone screen.
+ * The viewport caps above scale both down proportionally (a canvas is a
+ * replaced element, so max-width + max-height together preserve the aspect
+ * ratio), and the touch handler reads the displayed rect, so taps stay
+ * accurate. dvh tracks the real visible height on mobile browsers (100vh still
+ * includes the collapsible URL bar), which is what "fully visible" means on a
+ * phone. */
+@supports (max-height: 100dvh) {
+    .video-layer,
+    .touch-layer,
+    .video canvas {
+        max-height: 100dvh;
+    }
+}
+
 /* Shown over the canvas while the device reports its keyguard is up. Android
  * will not let anything capture the lock screen, so the stream is legitimately
  * black and there is nothing to fix on our side — the point is to say so

@@ -1,4 +1,6 @@
 import { t } from '../../client/i18n';
+import { settingsService } from '../../client/SettingsService';
+import { AudioSettingsStore } from '../../client/AudioSettingsStore';
 import { Modal } from '../../ui/Modal';
 import { StreamClientScrcpy } from './StreamClientScrcpy';
 import type { ParamsStreamScrcpy } from '../../../types/ParamsStreamScrcpy';
@@ -301,13 +303,45 @@ export class NotificationModal extends Modal {
         this.stopPolling();
         const playerClass = StreamClientScrcpy.getPlayers()[0];
         if (!playerClass) return;
+        // Saved per-device settings live in the SettingsService cache, which is
+        // only populated after hydration. Skipping this handed the connect
+        // flow the player's built-in defaults, so the reply opened the device
+        // with none of the settings the user had saved.
+        try {
+            await settingsService.hydrateDevice(this.udid);
+        } catch {
+            // Hydration is best-effort; fall back to whatever the cache holds.
+        }
         const player = StreamClientScrcpy.createPlayer(playerClass.playerFullName, this.udid);
         if (!player) return;
-        const videoSettings = player.getVideoSettings();
+        const videoSettings = playerClass.loadVideoSettings(this.udid);
         const fitToScreen = playerClass.getFitToScreenStatus(this.udid);
         player.setVideoSettings(videoSettings, fitToScreen, false);
+
+        // Behavior toggles and the video codec are separate stores, exactly as
+        // ConfigureScrcpy assembles them when the user connects from the list.
+        const storedBehavior = JSON.parse(localStorage.getItem(`behavior_${this.udid}`) || '{}') as Record<
+            string,
+            unknown
+        >;
+        const storedAudio = AudioSettingsStore.load(this.udid);
+        const storedCodec = localStorage.getItem(`videoCodec_${this.udid}`) || undefined;
+        const params: ParamsStreamScrcpy = {
+            ...this.params,
+            udid: this.params.udid,
+            fitToScreen,
+            videoCodec: storedCodec ?? this.params.videoCodec,
+            audioEnabled: storedAudio?.enabled ?? this.params.audioEnabled,
+            audioSource: storedAudio?.source ?? this.params.audioSource,
+            audioCodec: storedAudio?.codec ?? this.params.audioCodec,
+            turnScreenOff: !!storedBehavior['turnScreenOff'],
+            lockOnDisconnect: !!storedBehavior['lockOnDisconnect'],
+            stayAwake: !!storedBehavior['stayAwake'],
+            wakeLock: !!storedBehavior['wakeLock'],
+            cleanupOnDisconnect: storedBehavior['cleanupOnDisconnect'] !== false,
+        };
         const { ConnectModal } = await import('./ConnectModal');
-        new ConnectModal(this.params, player, fitToScreen, videoSettings, this.label, this.deviceKind);
+        new ConnectModal(params, player, fitToScreen, videoSettings, this.label, this.deviceKind);
         this.close(true);
     }
 
