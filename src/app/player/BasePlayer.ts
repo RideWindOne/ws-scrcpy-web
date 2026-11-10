@@ -406,16 +406,26 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
         if (!parent) {
             return;
         }
-        const targets = [this.tag, this.touchableCanvas];
         const deviceView = parent.parentElement;
-        const inModal = !!parent.closest('dialog.modal');
-        const inFullscreen = !!document.fullscreenElement;
-        if (!inModal && !inFullscreen) {
-            for (const canvas of targets) {
+        const toolbar = deviceView?.querySelector<HTMLElement>('.control-buttons-list') ?? null;
+        const dialog = parent.closest('dialog.modal');
+        const frame = dialog?.querySelector<HTMLElement>('.modal-frame') ?? null;
+        const reset = () => {
+            for (const canvas of [this.tag, this.touchableCanvas]) {
                 canvas.style.removeProperty('width');
                 canvas.style.removeProperty('height');
             }
+            parent.style.removeProperty('width');
+            parent.style.removeProperty('height');
             deviceView?.style.removeProperty('height');
+            toolbar?.style.removeProperty('height');
+            frame?.style.removeProperty('width');
+            frame?.style.removeProperty('height');
+        };
+        const inModal = !!dialog;
+        const inFullscreen = !!document.fullscreenElement;
+        if (!inModal && !inFullscreen) {
+            reset();
             return;
         }
         const videoSize = this.screenInfo?.videoSize;
@@ -425,19 +435,22 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
             return;
         }
 
+        // Available box. Fullscreen is measurable directly; the modal frame hugs
+        // the picture, so there is nothing to measure before the size is known —
+        // derive it from the viewport the same way modal.css caps it
+        // (max-width: 100vw - 24, max-height: 90vh) minus the 1px border.
         let availWidth: number;
         let availHeight: number;
         if (inFullscreen) {
             availWidth = parent.clientWidth;
             availHeight = parent.clientHeight;
         } else {
-            const toolbar = deviceView?.querySelector<HTMLElement>('.control-buttons-list');
-            // 90vh tall (max-height of the frame) and 95vw wide minus the toolbox
-            // and the frame's border/padding.
-            availWidth = Math.floor(window.innerWidth * 0.95) - (toolbar?.offsetWidth ?? 0) - 32;
-            availHeight = Math.floor(window.innerHeight * 0.9);
+            availWidth = window.innerWidth - 24 - (toolbar?.offsetWidth ?? 0) - 2;
+            availHeight = Math.floor(window.innerHeight * 0.9) - 2;
         }
-        if (availWidth <= 0 || availHeight <= 0) {
+        if (availWidth < 32 || availHeight < 32) {
+            // A transient measurement (mid-rotation, detached view) must not
+            // collapse the layout; leave whatever is there and try again later.
             return;
         }
 
@@ -447,21 +460,33 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
         const scale = Math.min(availWidth / videoWidth, availHeight / videoHeight);
         const cssWidth = Math.max(1, Math.floor(videoWidth * scale));
         const cssHeight = Math.max(1, Math.floor(videoHeight * scale));
-        for (const canvas of targets) {
+        for (const canvas of [this.tag, this.touchableCanvas]) {
             canvas.style.width = `${cssWidth}px`;
             canvas.style.height = `${cssHeight}px`;
         }
-        if (!deviceView) {
+        if (!inModal) {
+            // Fullscreen: CSS drives the box; only the canvases are ours.
+            reset();
+            for (const canvas of [this.tag, this.touchableCanvas]) {
+                canvas.style.width = `${cssWidth}px`;
+                canvas.style.height = `${cssHeight}px`;
+            }
             return;
         }
-        if (inFullscreen) {
-            deviceView.style.removeProperty('height');
-        } else {
-            // Pin the row to the picture: the toolbox stretches to the same height
-            // (and its overflow scrolls) instead of growing the frame past the
-            // picture and reintroducing bars.
-            deviceView.style.height = `${cssHeight}px`;
+        // Modal: pin the whole stack to the picture. `fit-content` alone left the
+        // frame wider than the picture, which read as wasted space, and a toolbar
+        // without its own height relied on stretch, so it vanished whenever the row
+        // collapsed. Sizes are explicit so none of that can happen.
+        parent.style.width = `${cssWidth}px`;
+        parent.style.height = `${cssHeight}px`;
+        if (toolbar) {
+            toolbar.style.height = `${cssHeight}px`;
         }
+        if (frame) {
+            frame.style.width = `${cssWidth + (toolbar?.offsetWidth ?? 0) + 2}px`;
+            frame.style.height = `${cssHeight + 2}px`;
+        }
+        deviceView?.style.removeProperty('height');
     }
 
     /** The container the player renders into (the .video element). */

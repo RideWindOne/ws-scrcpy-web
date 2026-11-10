@@ -39,14 +39,13 @@ interface Harness {
     player: TestPlayer;
     video: HTMLDivElement;
     deviceView: HTMLDivElement;
+    toolbar: HTMLDivElement;
+    frame: HTMLDivElement | null;
     videoCanvas: HTMLCanvasElement;
 }
 
 function buildDom(parentTag: 'dialog' | 'div'): Harness {
     const outer = parentTag === 'dialog' ? document.createElement('dialog') : document.createElement('div');
-    if (parentTag === 'dialog') {
-        outer.classList.add('modal');
-    }
     const deviceView = document.createElement('div');
     deviceView.className = 'device-view';
     const toolbar = document.createElement('div');
@@ -55,7 +54,16 @@ function buildDom(parentTag: 'dialog' | 'div'): Harness {
     const video = document.createElement('div');
     video.className = 'video';
     deviceView.append(toolbar, video);
-    outer.append(deviceView);
+    let frame: HTMLDivElement | null = null;
+    if (parentTag === 'dialog') {
+        outer.classList.add('modal');
+        frame = document.createElement('div');
+        frame.className = 'modal-frame';
+        frame.append(deviceView);
+        outer.append(frame);
+    } else {
+        outer.append(deviceView);
+    }
     document.body.append(outer);
 
     const player = new TestPlayer('udid');
@@ -67,7 +75,7 @@ function buildDom(parentTag: 'dialog' | 'div'): Harness {
             0,
         ),
     );
-    return { player, video, deviceView, videoCanvas: video.children[0] as HTMLCanvasElement };
+    return { player, video, deviceView, toolbar, frame, videoCanvas: video.children[0] as HTMLCanvasElement };
 }
 
 function setViewport(width: number, height: number): void {
@@ -94,30 +102,37 @@ describe('BasePlayer.fitCanvasToParent', () => {
         setFullscreen(null);
     });
 
-    it('sizes the modal picture from the viewport, whole, and pins the row to it', () => {
+    it('sizes the modal picture from the viewport, whole, and pins the stack to it', () => {
         setViewport(424, 800);
         const h = buildDom('dialog');
         h.player.fitCanvasToParent();
 
-        // floor(424 * 0.95) - toolbar - 32 ; floor(800 * 0.9)
-        const availWidth = Math.floor(424 * 0.95) - TOOLBAR_WIDTH - 32;
-        const availHeight = Math.floor(800 * 0.9);
+        // 100vw - 24 (frame max-width) - toolbar - 2 (border) ; 90vh - 2
+        const availWidth = 424 - 24 - TOOLBAR_WIDTH - 2;
+        const availHeight = Math.floor(800 * 0.9) - 2;
         const scale = Math.min(availWidth / DEVICE_WIDTH, availHeight / DEVICE_HEIGHT);
-        const expectedWidth = `${Math.floor(DEVICE_WIDTH * scale)}px`;
-        const expectedHeight = `${Math.floor(DEVICE_HEIGHT * scale)}px`;
+        const cssWidth = Math.floor(DEVICE_WIDTH * scale);
+        const cssHeight = Math.floor(DEVICE_HEIGHT * scale);
+        const expectedWidth = `${cssWidth}px`;
+        const expectedHeight = `${cssHeight}px`;
 
         expect(h.videoCanvas.style.width).toBe(expectedWidth);
         expect(h.videoCanvas.style.height).toBe(expectedHeight);
         // The touch surface must match the picture or taps land in the wrong place.
         expect(h.player.getTouchableElement().style.width).toBe(expectedWidth);
         expect(h.player.getTouchableElement().style.height).toBe(expectedHeight);
-        expect(h.deviceView.style.height).toBe(expectedHeight);
+
+        // No wasted space: the frame is exactly picture + toolbox, no wider.
+        expect(h.video.style.width).toBe(expectedWidth);
+        expect(h.video.style.height).toBe(expectedHeight);
+        expect(h.toolbar.style.height).toBe(expectedHeight);
+        expect(h.frame?.style.width).toBe(`${cssWidth + TOOLBAR_WIDTH + 2}px`);
+        expect(h.frame?.style.height).toBe(`${cssHeight + 2}px`);
 
         // Whole fit: the picture never exceeds the box it was given.
-        const width = Number.parseFloat(expectedWidth);
-        const height = Number.parseFloat(expectedHeight);
-        expect(width).toBeLessThanOrEqual(availWidth);
-        expect(height).toBeLessThanOrEqual(availHeight);
+        expect(cssWidth).toBeLessThanOrEqual(availWidth);
+        expect(cssHeight).toBeLessThanOrEqual(availHeight);
+        expect(Math.abs(cssWidth / cssHeight - DEVICE_WIDTH / DEVICE_HEIGHT)).toBeLessThan(0.01);
     });
 
     it('keeps the device aspect ratio exactly in fullscreen (fits, never crops)', () => {
@@ -146,11 +161,14 @@ describe('BasePlayer.fitCanvasToParent', () => {
         h.videoCanvas.style.width = '123px';
         h.player.getTouchableElement().style.width = '123px';
         h.deviceView.style.height = '456px';
+        h.toolbar.style.height = '456px';
 
         h.player.fitCanvasToParent();
 
         expect(h.videoCanvas.style.width).toBe('');
         expect(h.player.getTouchableElement().style.width).toBe('');
         expect(h.deviceView.style.height).toBe('');
+        expect(h.toolbar.style.height).toBe('');
+        expect(h.video.style.width).toBe('');
     });
 });
