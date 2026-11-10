@@ -535,6 +535,26 @@ dialog.connect-modal .modal-frame {
     max-width: 95vw;
 }
 
+/* Phones: a max-height alone leaves the frame height content-driven, so the
+ * percentage caps below cannot resolve and the canvas falls back to its
+ * intrinsic (device-pixel) size — taller than the box, clipped at the bottom
+ * (on-screen navigation bars disappeared first). Pin the frame height so the
+ * flex chain has a definite height to pass down. Desktop keeps the content-sized
+ * frame; its viewport is large enough that the canvas rarely needs scaling. */
+@media (max-width: 640px) {
+    dialog.connect-modal .modal-frame {
+        height: 90vh;
+    }
+}
+
+@supports (height: 100dvh) {
+    @media (max-width: 640px) {
+        dialog.connect-modal .modal-frame {
+            height: 90dvh;
+        }
+    }
+}
+
 /* biome-ignore lint/style/noDescendingSpecificity: dialog.connect-modal and dialog.modal.shell-modal are mutually exclusive — no element matches both */
 dialog.connect-modal .modal-body {
     padding: 0;
@@ -559,7 +579,10 @@ dialog.connect-modal .modal-body {
  * stays accurate. (A viewport-based cap cannot express this box: it is 90vh
  * minus the modal header, i.e. a parent-relative height.) */
 dialog.connect-modal .video {
-    width: 100%;
+    /* flex:1 (not width:100%) — the toolbar is a fixed-width sibling, so 100%
+       would push it out of the frame. */
+    flex: 1;
+    min-width: 0;
     height: 100%;
 }
 
