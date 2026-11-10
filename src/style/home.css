@@ -57,6 +57,17 @@
    never sit flush against the window edge. */
 .page-container {
     padding: 56px 24px 0;
+    /* This element IS the page scroller. `body` is pinned to the viewport with
+       `overflow: hidden` (the stream layout depends on it) and nothing inside
+       owned the scroll, so the device list was clipped at the first screenful
+       and the whole page would not pan. */
+    height: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    /* Keep the last card clear of the mobile browser's bottom bar. */
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 /* Page sections */
