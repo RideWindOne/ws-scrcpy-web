@@ -292,12 +292,12 @@ body[data-embed-entry] .device-view {
 
 /* Fullscreen mode: device view fills screen (mobile via UA only; desktop keeps the original behavior) */
 .device-view:fullscreen {
-    /* Give up only the notch strip at the top. Reserving all four insets
-     * (earlier attempt) shrank the picture noticeably; the status-bar height
-     * alone costs ~2% of the height and stops the cutout from covering the
-     * top of the mirrored screen. box-sizing keeps it inside 100vw/100vh. */
+    /* No safe-area padding at all: reserving even the status-bar strip made the
+     * picture visibly smaller, and a bigger picture wins. Without
+     * `viewport-fit=cover` the browser keeps its own UI out of the cutout and
+     * the stream gets the full height. box-sizing stays so any padding added
+     * later is counted inside 100vw/100vh. */
     box-sizing: border-box;
-    padding-top: env(safe-area-inset-top, 0px);
 }
 
 body[data-ua-mobile="true"] .device-view:fullscreen {
