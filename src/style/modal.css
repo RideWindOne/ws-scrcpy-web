@@ -67,6 +67,7 @@ dialog.modal .modal-frame {
     width: clamp(320px, 50vw, 700px);
     max-width: calc(100vw - 24px);
     max-height: 80vh;
+    max-height: 80dvh;
     display: flex;
     flex-direction: column;
     background: rgba(42, 42, 42, 0.85);
@@ -719,6 +720,10 @@ dialog.settings-modal .modal-frame {
     /* 92vw floor on phones (460px was wider than a 420-460px phone viewport,
        clipping the last tab / right edge); desktop keeps the 820px ceiling. */
     width: clamp(320px, 92vw, 820px);
+    /* `dvh` tracks the *visible* viewport while the mobile browser bar shows and
+       hides; plain vh uses the larger value, so a 95vh frame ran off the bottom
+       of the screen and its own scroller was out of reach. */
+    max-height: 95dvh;
     /* 95vh (not the base 80vh / prior 85vh): the App + Updates + Service
        sections together are tall enough that 85vh forced an inner scrollbar on
        smaller viewports. 95vh leaves a ~2.5% margin top/bottom so the frame
