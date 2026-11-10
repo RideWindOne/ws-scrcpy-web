@@ -14,7 +14,7 @@
 > 3. 部署本镜像，通过极空间 Docker 自带的端口映射/反代远程访问
 > 4. 随时随地通过手机浏览器访问你的云手机
 >
-> Docker 镜像：`ridewindone/ws-scrcpy-web:arm64`
+> Docker 镜像：`ridewindone/ws-scrcpy-web:latest`
 
 ---
 
