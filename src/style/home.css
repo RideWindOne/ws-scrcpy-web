@@ -68,6 +68,8 @@
     -webkit-overflow-scrolling: touch;
     /* Keep the last card clear of the mobile browser's bottom bar. */
     padding-bottom: max(16px, env(safe-area-inset-bottom));
+    /* With viewport-fit=cover the page may start under the cutout. */
+    padding-top: max(56px, calc(env(safe-area-inset-top, 0px) + 44px));
 }
 
 /* Page sections */

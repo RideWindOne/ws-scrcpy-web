@@ -78,6 +78,60 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
         }
     };
 
+    // Some Android browsers reject or silently drop the Screen Wake Lock, and the
+    // display then sleeps as soon as nobody touches it. Keeping a 1px muted video
+    // playing marks the page as "playing media", so the system's own
+    // video-player rule keeps the screen on as well.
+    let playbackGuard: { destroy: () => void } | null = null;
+    let wakeLockKeeper: number | undefined;
+    const startPlaybackGuard = (): void => {
+        if (playbackGuard || !options.wakeLock) {
+            return;
+        }
+        if (typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
+            return;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 2;
+        canvas.height = 2;
+        const ctx = canvas.getContext('2d');
+        const video = document.createElement('video');
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.setAttribute('aria-hidden', 'true');
+        video.style.cssText =
+            'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1;';
+        const stream = canvas.captureStream(4);
+        // Frames must actually change or the browser treats playback as stalled.
+        const painter = window.setInterval(() => {
+            if (!ctx) {
+                return;
+            }
+            ctx.fillStyle = ctx.fillStyle === '#000' ? '#111' : '#000';
+            ctx.fillRect(0, 0, 2, 2);
+        }, 250);
+        video.srcObject = stream;
+        document.body.appendChild(video);
+        void video.play().catch(() => {
+            // Autoplay policy declined it; the wake lock below still applies.
+        });
+        playbackGuard = {
+            destroy: () => {
+                window.clearInterval(painter);
+                for (const track of stream.getTracks()) {
+                    track.stop();
+                }
+                video.srcObject = null;
+                video.remove();
+            },
+        };
+    };
+    const stopPlaybackGuard = (): void => {
+        playbackGuard?.destroy();
+        playbackGuard = null;
+    };
+
     const codecMap: Record<NonNullable<StartStreamOptions['codec']>, string> = {
         h264: 'h264',
         h265: 'h265',
@@ -154,6 +208,8 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
                 isConnected = false;
                 // Release wake lock
                 releaseWakeLock();
+                window.clearInterval(wakeLockKeeper);
+                stopPlaybackGuard();
                 document.removeEventListener('visibilitychange', onVisibilityChange);
                 options.onDisconnect?.();
             },
@@ -173,6 +229,13 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
             // time the page becomes visible again.
             document.addEventListener('visibilitychange', onVisibilityChange);
             acquireWakeLock();
+            startPlaybackGuard();
+            // The lock is dropped by the system for reasons the page never hears
+            // about (power saver kicking in, the browser reclaiming it), so try
+            // again periodically instead of only on connect / visibility.
+            wakeLockKeeper = window.setInterval(() => {
+                acquireWakeLock();
+            }, 15000);
             options.onConnect?.(info);
         };
         hooked.onErrorReceived = (err: Error) => {
@@ -195,6 +258,8 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
             if (stopped) return;
             stopped = true;
             releaseWakeLock();
+            window.clearInterval(wakeLockKeeper);
+            stopPlaybackGuard();
             document.removeEventListener('visibilitychange', onVisibilityChange);
             stopFn?.();
         },

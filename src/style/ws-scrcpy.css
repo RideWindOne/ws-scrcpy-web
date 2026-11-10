@@ -292,12 +292,12 @@ body[data-embed-entry] .device-view {
 
 /* Fullscreen mode: device view fills screen (mobile via UA only; desktop keeps the original behavior) */
 .device-view:fullscreen {
-    /* No safe-area padding: reserving the notch height (env(safe-area-inset-top))
-     * shrank the picture noticeably, and a bigger picture was the priority. The
-     * viewport uses plain `initial-scale=1.0`, so the browser already keeps the
-     * page out of the cutout on its own. box-sizing stays so any padding added
-     * later is counted inside 100vw/100vh. */
+    /* Give up only the notch strip at the top. Reserving all four insets
+     * (earlier attempt) shrank the picture noticeably; the status-bar height
+     * alone costs ~2% of the height and stops the cutout from covering the
+     * top of the mirrored screen. box-sizing keeps it inside 100vw/100vh. */
     box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
 }
 
 body[data-ua-mobile="true"] .device-view:fullscreen {
