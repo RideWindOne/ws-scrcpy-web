@@ -487,6 +487,14 @@ export class StreamClientScrcpy
 
         const deviceView = document.createElement('div');
         deviceView.className = 'device-view';
+        // Re-fit the picture whenever the box changes: window resize, orientation
+        // change and fullscreen toggles all land here. BasePlayer.fitCanvasToParent
+        // only acts in bounded contexts (modal / fullscreen) and clears itself
+        // elsewhere, so this is a no-op on the plain stream page.
+        const onViewportResize = () => this.player?.fitCanvasToParent();
+        window.addEventListener('resize', onViewportResize);
+        document.addEventListener('fullscreenchange', onViewportResize);
+        document.addEventListener('orientationchange', onViewportResize);
         const stop = (ev?: string | Event) => {
             if (ev && ev instanceof Event && ev.type === 'error') {
                 console.error(TAG, ev);
@@ -494,6 +502,9 @@ export class StreamClientScrcpy
             // Mark that the upcoming WebSocket close is user-initiated so
             // onDisconnected does not fire the public onErrorReceived hook.
             this.isStopping = true;
+            window.removeEventListener('resize', onViewportResize);
+            document.removeEventListener('fullscreenchange', onViewportResize);
+            document.removeEventListener('orientationchange', onViewportResize);
             const parent = deviceView.parentElement;
             if (parent) parent.removeChild(deviceView);
             this.setHandleKeyboardEvents(false);

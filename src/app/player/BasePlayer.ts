@@ -378,6 +378,51 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
         this.parentElement = parent;
         parent.appendChild(this.tag);
         parent.appendChild(this.touchableCanvas);
+        requestAnimationFrame(() => this.fitCanvasToParent());
+    }
+
+    /**
+     * Size the video and touch canvases to the largest box that fits the parent,
+     * preserving the device aspect ratio.
+     *
+     * Only bounded contexts are fitted — the connect modal (whose frame carries
+     * a definite height, see modal.css) and fullscreen. Everywhere else the
+     * parent grows with the canvas, so feeding its height back would ratchet the
+     * picture smaller on each call; those contexts keep the viewport caps from
+     * the stylesheet. Percentage caps alone cannot do this job inside the modal:
+     * `.video` is a grid whose implicit row is content-sized, so a percentage
+     * max-height on the canvas resolves against the canvas itself and does
+     * nothing — that is why the picture stayed clipped.
+     */
+    public fitCanvasToParent(): void {
+        const parent = this.parentElement;
+        if (!parent) {
+            return;
+        }
+        const targets = [this.tag, this.touchableCanvas];
+        const bounded = !!parent.closest('dialog.modal') || !!document.fullscreenElement;
+        if (!bounded) {
+            for (const canvas of targets) {
+                canvas.style.removeProperty('width');
+                canvas.style.removeProperty('height');
+            }
+            return;
+        }
+        const videoSize = this.screenInfo?.videoSize;
+        const videoWidth = videoSize?.width ?? this.videoWidth;
+        const videoHeight = videoSize?.height ?? this.videoHeight;
+        const availWidth = parent.clientWidth;
+        const availHeight = parent.clientHeight;
+        if (videoWidth <= 0 || videoHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
+            return;
+        }
+        const scale = Math.min(availWidth / videoWidth, availHeight / videoHeight);
+        const cssWidth = Math.max(1, Math.floor(videoWidth * scale));
+        const cssHeight = Math.max(1, Math.floor(videoHeight * scale));
+        for (const canvas of targets) {
+            canvas.style.width = `${cssWidth}px`;
+            canvas.style.height = `${cssHeight}px`;
+        }
     }
 
     /** The container the player renders into (the .video element). */
@@ -431,6 +476,7 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
         }
         const size = new Size(width, height);
         this.emit('video-view-resize', size);
+        requestAnimationFrame(() => this.fitCanvasToParent());
     }
 
     public getName(): string {

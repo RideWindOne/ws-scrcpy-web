@@ -568,16 +568,14 @@ dialog.connect-modal .modal-body {
  * ws-scrcpy.css and is shared with embed.html. The modal-body above is the
  * flex parent that gives .device-view its box.
  *
- * Sizing chain: the frame caps at 90vh, the body takes the remaining height
- * (flex:1, min-height:0), .device-view and .video stretch to it, so the grid
- * cell has a definite height and the canvas can be capped to it as a
- * percentage. `.video-layer` IS the canvas itself (BaseCanvasBasedPlayer tags
- * the canvas) and `.touch-layer` is the sibling touch canvas, so capping both
- * axes scales them down keeping the device aspect ratio instead of clipping —
- * never set width/height:100% here, that would stretch the picture. The touch
- * handler maps taps from the displayed rect and already letterboxes, so input
- * stays accurate. (A viewport-based cap cannot express this box: it is 90vh
- * minus the modal header, i.e. a parent-relative height.) */
+ * `.video-layer` IS the canvas itself (BaseCanvasBasedPlayer tags the canvas)
+ * and `.touch-layer` is the sibling touch canvas. Sizing them is left to
+ * BasePlayer.fitCanvasToParent, which measures the box and writes an inline
+ * pixel size at the device aspect ratio — the two canvases must share it or the
+ * touch surface would not line up. Percentage caps cannot do this here: `.video`
+ * is a grid whose implicit row is content-sized, so a percentage max-height on
+ * the canvas resolves against the canvas and never shrinks it. The frame
+ * therefore carries a definite height (see above) so the box is measurable. */
 dialog.connect-modal .video {
     /* flex:1 (not width:100%) — the toolbar is a fixed-width sibling, so 100%
        would push it out of the frame. */
@@ -588,10 +586,8 @@ dialog.connect-modal .video {
 
 dialog.connect-modal .video-layer,
 dialog.connect-modal .touch-layer {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
+    max-width: none;
+    max-height: none;
 }
 
 /* ── List files modal overrides ── */
