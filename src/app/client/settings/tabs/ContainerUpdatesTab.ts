@@ -75,7 +75,20 @@ export function buildContainerUpdatesTab(): HTMLElement {
     const checkBtn = document.createElement('button');
     checkBtn.className = 'settings-btn settings-btn-primary';
     checkBtn.textContent = t('cont_update_check');
-    card1.appendChild(buildItem(buildRow('', checkBtn)));
+    // The check failing says nothing about WHY. This asks the server to probe
+    // every route (direct + configured + known mirrors) and print the verdict.
+    const diagnoseBtn = document.createElement('button');
+    diagnoseBtn.className = 'settings-btn';
+    diagnoseBtn.textContent = t('cont_update_diagnose');
+    const actionField = document.createElement('span');
+    actionField.appendChild(checkBtn);
+    actionField.appendChild(diagnoseBtn);
+    card1.appendChild(buildItem(buildRow('', actionField)));
+
+    const diagRow = document.createElement('div');
+    diagRow.style.gridColumn = '1 / -1';
+    diagRow.style.display = 'none';
+    card1.appendChild(buildItem(diagRow));
 
     // The "an update is available" block, created lazily once a check finds a
     // release with a dist asset.
@@ -186,7 +199,13 @@ export function buildContainerUpdatesTab(): HTMLElement {
                 data = null;
             }
             if (!data) {
-                tabAlert.show('error', text.trim() || 'unexpected server response');
+                // Non-JSON means the response never reached the API: an empty
+                // body is a reverse-proxy timeout, HTML is a gateway page.
+                const snippet = text.trim().slice(0, 160);
+                const detail = snippet
+                    ? snippet
+                    : `HTTP ${res.status} ${res.statusText} — ${t('cont_update_diag_empty_body')}`;
+                tabAlert.show('error', `${t('cont_update_bad_response')}${detail}`);
                 resultRow.style.display = 'none';
                 return;
             }
@@ -357,6 +376,75 @@ export function buildContainerUpdatesTab(): HTMLElement {
                 tabAlert.show('error', (err as Error).message);
             } finally {
                 setBusy(saveProxyBtn, false);
+            }
+        })();
+    });
+
+    interface DiagRoute {
+        kind: 'direct' | 'configured' | 'candidate';
+        prefix: string | null;
+        target: string;
+        status: number | null;
+        ms: number;
+        ok: boolean;
+        tag?: string | null;
+        error?: string;
+    }
+
+    function renderDiagnose(rows: DiagRoute[], totalMs: number, usable: string[]): void {
+        diagRow.replaceChildren();
+        diagRow.style.display = '';
+        const head = document.createElement('p');
+        head.className = 'settings-status';
+        head.textContent =
+            usable.length > 0
+                ? `${t('cont_update_diag_verdict')}: ${usable.join(' , ')} (${totalMs} ms)`
+                : `${t('cont_update_diag_verdict')}: ${t('cont_update_diag_fail')}`;
+        diagRow.appendChild(head);
+        for (const row of rows) {
+            const line = document.createElement('p');
+            line.className = 'settings-status';
+            const kindLabel =
+                row.kind === 'direct'
+                    ? t('cont_update_diag_direct')
+                    : row.kind === 'configured'
+                      ? `${t('cont_update_diag_configured')} ${row.prefix ?? ''}`
+                      : `${t('cont_update_diag_candidate')} ${row.prefix ?? ''}`;
+            const verdict = row.ok ? `✓ ${t('cont_update_diag_ok')}` : `✗ ${t('cont_update_diag_fail')}`;
+            const detail = row.ok
+                ? `HTTP ${row.status ?? ''} · ${row.ms} ms · ${row.tag ?? ''}`
+                : row.error
+                  ? `${row.error}`
+                  : `HTTP ${row.status ?? '—'} · ${row.ms} ms`;
+            line.textContent = `${kindLabel} — ${verdict} — ${detail}`;
+            line.style.wordBreak = 'break-word';
+            diagRow.appendChild(line);
+        }
+    }
+
+    diagnoseBtn.addEventListener('click', () => {
+        void (async () => {
+            setBusy(diagnoseBtn, true, t('cont_update_diagnose'));
+            tabAlert.clear();
+            try {
+                const res = await fetch('/api/container-update/diagnose');
+                const data = (await res.json()) as {
+                    ok?: boolean;
+                    results?: DiagRoute[];
+                    totalMs?: number;
+                    usable?: string[];
+                    error?: string;
+                };
+                if (!data.ok || !data.results) {
+                    tabAlert.show('error', localizeServerError(data.error ?? 'probe failed'));
+                    return;
+                }
+                renderDiagnose(data.results, data.totalMs ?? 0, data.usable ?? []);
+            } catch (err) {
+                tabAlert.show('error', (err as Error).message);
+            } finally {
+                diagnoseBtn.textContent = t('cont_update_diagnose');
+                diagnoseBtn.disabled = false;
             }
         })();
     });

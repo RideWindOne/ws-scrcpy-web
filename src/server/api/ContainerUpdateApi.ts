@@ -152,17 +152,55 @@ async function proxyDispatcher(proxy: string | null): Promise<unknown> {
     }
 }
 
-/** `fetch` for GitHub, honouring the configured prefix or proxy. */
+/** A look-up has to answer before the reverse proxy in front of us gives up. */
+export const GITHUB_CHECK_TIMEOUT_MS = 15_000;
+/** A connection probe wants a fast verdict, not a long wait. */
+export const GITHUB_PROBE_TIMEOUT_MS = 6_000;
+/** The dist asset is ~1 MB; generous but still bounded. */
+export const GITHUB_DOWNLOAD_TIMEOUT_MS = 90_000;
+
+/**
+ * `fetch` for GitHub, honouring the configured prefix or proxy.
+ *
+ * ALWAYS BOUNDED. Without a deadline a request to an unreachable host simply
+ * hangs — TCP retries run for minutes — and the reverse proxy in front of the
+ * container answers first with an empty or HTML body. The tab parses that as
+ * non-JSON and can only say "unexpected server response", which reads like a
+ * GitHub refusal when it is really "the request never finished". A deadline
+ * turns every such case into one JSON error naming the host and the budget.
+ */
 export async function githubFetch(
     rawUrl: string,
     init: RequestInit & { dispatcher?: unknown },
     proxy: string | null = readUpdateProxy(),
+    timeoutMs: number = GITHUB_CHECK_TIMEOUT_MS,
 ): Promise<Response> {
     const dispatcher = await proxyDispatcher(proxy);
     const target = proxifyGithubUrl(rawUrl, proxy);
     const opts: Record<string, unknown> = { ...init };
     if (dispatcher) opts['dispatcher'] = dispatcher;
-    return fetch(target, opts as RequestInit);
+    if (opts['signal'] === undefined) opts['signal'] = AbortSignal.timeout(timeoutMs);
+    try {
+        return await fetch(target, opts as RequestInit);
+    } catch (err) {
+        const name = (err as Error)?.name ?? '';
+        const host = safeHost(target);
+        if (name === 'TimeoutError' || name === 'AbortError') {
+            throw new Error(
+                `${host} did not answer within ${Math.round(timeoutMs / 1000)}s ` +
+                    '(check that this container can reach it — direct access or the configured proxy)',
+            );
+        }
+        throw new Error(`${host} unreachable: ${(err as Error)?.message ?? String(err)}`);
+    }
+}
+
+function safeHost(url: string): string {
+    try {
+        return new URL(url).host;
+    } catch {
+        return url;
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -398,6 +436,9 @@ export class ContainerUpdateApi {
             if (req.method === 'PATCH' && url === '/api/container-update/proxy') {
                 return await this.handleProxy(req, res);
             }
+            if (req.method === 'GET' && url === '/api/container-update/diagnose') {
+                return await this.handleDiagnose(res);
+            }
             if (req.method === 'POST' && url === '/api/container-update/github-check') {
                 return await this.handleGithubCheck(req, res);
             }
@@ -454,6 +495,83 @@ export class ContainerUpdateApi {
         const body: ContainerUpdateActionResponse = { ok: true, status: this.buildStatus() };
         res.writeHead(200);
         res.end(JSON.stringify(body));
+        return true;
+    }
+
+    /**
+     * Probe GitHub access from inside the container, once per route, and report
+     * what each one answered.
+     *
+     * The point is to replace guessing: "check for updates" fails the same way
+     * whether the network cannot reach GitHub, the configured prefix is dead, or
+     * the request merely outlived the reverse proxy. Each probe is bounded, runs
+     * in parallel, and reports status + timing + whether the body was a real
+     * release payload.
+     */
+    private async handleDiagnose(res: ServerResponse): Promise<boolean> {
+        const repo = readUpdateRepo() || 'RideWindOne/ws-scrcpy-web';
+        const apiUrl = `https://api.github.com/repos/${encodeURIComponent(repo)}/releases/latest`;
+        const configured = readUpdateProxy();
+        const routes: Array<{ kind: string; prefix: string | null }> = [{ kind: 'direct', prefix: null }];
+        if (configured) routes.push({ kind: 'configured', prefix: configured });
+        for (const candidate of ['https://gh-proxy.com/', 'https://ghproxy.net/']) {
+            if (configured && candidate.replace(/\/$/, '') === configured.replace(/\/$/, '')) continue;
+            routes.push({ kind: 'candidate', prefix: candidate });
+        }
+        const started = Date.now();
+        const results = await Promise.all(
+            routes.map(async (route) => {
+                const t0 = Date.now();
+                try {
+                    const resp = await githubFetch(
+                        apiUrl,
+                        { headers: { 'User-Agent': 'ws-scrcpy-web', Accept: 'application/vnd.github+json' } },
+                        route.prefix,
+                        GITHUB_PROBE_TIMEOUT_MS,
+                    );
+                    const body = await resp.text();
+                    let tag: string | null = null;
+                    try {
+                        const parsed = JSON.parse(body) as { tag_name?: unknown };
+                        if (typeof parsed.tag_name === 'string') tag = parsed.tag_name;
+                    } catch {
+                        // An HTML error page from the mirror lands here.
+                    }
+                    return {
+                        kind: route.kind,
+                        prefix: route.prefix,
+                        target: proxifyGithubUrl(apiUrl, route.prefix),
+                        status: resp.status,
+                        ms: Date.now() - t0,
+                        ok: resp.ok && tag !== null,
+                        tag,
+                        error: resp.ok && tag === null ? 'response was not a GitHub release payload' : undefined,
+                    };
+                } catch (err) {
+                    return {
+                        kind: route.kind,
+                        prefix: route.prefix,
+                        target: proxifyGithubUrl(apiUrl, route.prefix),
+                        ms: Date.now() - t0,
+                        ok: false,
+                        status: null as number | null,
+                        error: (err as Error).message,
+                    };
+                }
+            }),
+        );
+        const usable = results.filter((r) => r.ok).map((r) => r.prefix ?? 'direct');
+        res.writeHead(200);
+        res.end(
+            JSON.stringify({
+                ok: true,
+                repo,
+                proxy: configured,
+                totalMs: Date.now() - started,
+                usable,
+                results,
+            }),
+        );
         return true;
     }
 
@@ -549,10 +667,15 @@ export class ContainerUpdateApi {
         log.info(`downloading ${asset.name} from ${repo}`);
         const tarPath = path.join(os.tmpdir(), `ws-gh-${Date.now()}.tar.gz`);
         try {
-            const resp = await githubFetch(asset.url, {
-                headers: { 'User-Agent': 'ws-scrcpy-web', Accept: 'application/octet-stream' },
-                redirect: 'follow',
-            });
+            const resp = await githubFetch(
+                asset.url,
+                {
+                    headers: { 'User-Agent': 'ws-scrcpy-web', Accept: 'application/octet-stream' },
+                    redirect: 'follow',
+                },
+                readUpdateProxy(),
+                GITHUB_DOWNLOAD_TIMEOUT_MS,
+            );
             if (!resp.ok || !resp.body) {
                 throw new Error(`download failed: HTTP ${resp.status}`);
             }

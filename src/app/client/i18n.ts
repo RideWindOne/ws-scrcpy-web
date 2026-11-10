@@ -382,6 +382,38 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '检查更新走 GitHub，国内直连常被拦（表现为「unexpected server response」）。填加速前缀（如 https://gh-proxy.com/，会拼在原地址前）或本机 HTTP 代理（带端口，如 http://192.168.1.2:7890）。留空则直连。',
         en: 'Update checks go to GitHub, which is often blocked (seen as "unexpected server response"). Enter an acceleration prefix (e.g. https://gh-proxy.com/, prepended to the URL) or an HTTP proxy with a port (e.g. http://192.168.1.2:7890). Empty means direct.',
     },
+    'cont_update_diagnose': {
+        zh: '测试连接',
+        en: 'Test connection',
+    },
+    'cont_update_diag_direct': {
+        zh: '直连 GitHub',
+        en: 'Direct to GitHub',
+    },
+    'cont_update_diag_configured': {
+        zh: '当前配置',
+        en: 'Configured',
+    },
+    'cont_update_diag_candidate': {
+        zh: '候选',
+        en: 'Candidate',
+    },
+    'cont_update_diag_ok': {
+        zh: '可用',
+        en: 'usable',
+    },
+    'cont_update_diag_fail': {
+        zh: '不可用',
+        en: 'unusable',
+    },
+    'cont_update_diag_empty_body': {
+        zh: '空响应，多半是反向代理超时',
+        en: 'empty response — likely a reverse-proxy timeout',
+    },
+    'cont_update_diag_verdict': {
+        zh: '检测结果',
+        en: 'Probe result',
+    },
     'cont_update_proxy_saved': {
         zh: '加速地址已保存',
         en: 'Access proxy saved',
