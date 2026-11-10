@@ -292,15 +292,12 @@ body[data-embed-entry] .device-view {
 
 /* Fullscreen mode: device view fills screen (mobile via UA only; desktop keeps the original behavior) */
 .device-view:fullscreen {
-    /* Keep the picture out of the notch / status bar / gesture area. The page opts
-       into `viewport-fit=cover`, so without this the stream is laid out under the
-       cutout and the top of the device screen is physically hidden.
-       box-sizing keeps the padding inside 100vw/100vh. */
+    /* No safe-area padding: reserving the notch height (env(safe-area-inset-top))
+     * shrank the picture noticeably, and a bigger picture was the priority. The
+     * viewport uses plain `initial-scale=1.0`, so the browser already keeps the
+     * page out of the cutout on its own. box-sizing stays so any padding added
+     * later is counted inside 100vw/100vh. */
     box-sizing: border-box;
-    padding-top: env(safe-area-inset-top);
-    padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
 }
 
 body[data-ua-mobile="true"] .device-view:fullscreen {
