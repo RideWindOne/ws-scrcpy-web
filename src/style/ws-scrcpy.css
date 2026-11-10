@@ -393,6 +393,12 @@ body[data-ua-mobile="true"] .device-view:fullscreen .fullscreen-edge-zone {
     z-index: 3;
     box-sizing: border-box;
     border-radius: 6px;
+    /* No browser panning/zooming on this strip: with the default touch-action the
+     * browser claims a vertical finger gesture and fires pointercancel a few
+     * pixels in, so a drag only moved the bar a little and had to be repeated. */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
     background: linear-gradient(to left, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.04));
     border-right: 2px solid rgba(255, 255, 255, 0.65);
     transform: translateY(-50%);

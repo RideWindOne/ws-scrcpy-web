@@ -534,18 +534,20 @@ export class StreamClientScrcpy
         // Tap reveals/hides the toolbox; dragging moves the bar up and down
         // instead. Without the drag the only way to reposition it was a slider in
         // a dialog, which is awkward while fullscreen.
-        const DRAG_THRESHOLD_PX = 8;
+        const DRAG_THRESHOLD_PX = 6;
         let dragStartY = 0;
         let dragging = false;
         let dragOriginOffset = 50;
+        let currentOffset = 50;
         const endDrag = (ev: PointerEvent) => {
             edgeZone.removeEventListener('pointermove', onPointerMove);
             edgeZone.removeEventListener('pointerup', endDrag);
-            edgeZone.removeEventListener('pointercancel', endDrag);
+            edgeZone.removeEventListener('pointercancel', onPointerCancel);
             if (edgeZone.hasPointerCapture?.(ev.pointerId)) {
                 edgeZone.releasePointerCapture(ev.pointerId);
             }
             if (!dragging) {
+                // A tap (nothing moved) toggles the toolbox; a drag never does.
                 if (deviceView.classList.contains(TOOLBAR_VISIBLE)) {
                     hideFullscreenToolbar();
                 } else {
@@ -556,20 +558,31 @@ export class StreamClientScrcpy
             const config = loadEdgeZoneConfig();
             saveEdgeZoneConfig({ ...config, offset: currentOffset });
         };
-        let currentOffset = 50;
+        const onPointerCancel = () => {
+            // The gesture was taken away mid-drag (another touch, system back
+            // gesture): keep the bar where the finger left it instead of snapping.
+            edgeZone.removeEventListener('pointermove', onPointerMove);
+            edgeZone.removeEventListener('pointerup', endDrag);
+            edgeZone.removeEventListener('pointercancel', onPointerCancel);
+            if (dragging) {
+                const config = loadEdgeZoneConfig();
+                saveEdgeZoneConfig({ ...config, offset: currentOffset });
+            }
+        };
         const onPointerMove = (ev: PointerEvent) => {
+            // Distance from the press point, not frame-to-frame: this keeps the
+            // bar under the finger for the whole gesture (no lost pixels, no
+            // need to drag several times).
             const dy = ev.clientY - dragStartY;
             if (!dragging && Math.abs(dy) < DRAG_THRESHOLD_PX) {
                 return;
             }
             if (!dragging) {
                 dragging = true;
-                currentOffset = dragOriginOffset;
-                dragStartY = ev.clientY;
+                hideFullscreenToolbar();
             }
             const height = deviceView.clientHeight || window.innerHeight;
-            currentOffset = Math.min(100, Math.max(0, currentOffset + (dy / height) * 100));
-            dragStartY = ev.clientY;
+            currentOffset = Math.min(100, Math.max(0, dragOriginOffset + (dy / height) * 100));
             edgeZone.style.top = `${currentOffset}%`;
         };
         edgeZone.addEventListener('pointerdown', (ev: PointerEvent) => {
@@ -585,7 +598,7 @@ export class StreamClientScrcpy
             edgeZone.setPointerCapture?.(ev.pointerId);
             edgeZone.addEventListener('pointermove', onPointerMove);
             edgeZone.addEventListener('pointerup', endDrag);
-            edgeZone.addEventListener('pointercancel', endDrag);
+            edgeZone.addEventListener('pointercancel', onPointerCancel);
         });
         deviceView.appendChild(edgeZone);
 
