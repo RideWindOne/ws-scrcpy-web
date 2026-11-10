@@ -382,8 +382,9 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
     }
 
     /**
-     * Size the video and touch canvases to the largest box that fits the parent,
-     * preserving the device aspect ratio.
+     * Size the video and touch canvases to fill the parent box at the device
+     * aspect ratio (falling back to a letterboxed fit when the shapes differ too
+     * much to fill without heavy cropping).
      *
      * Only bounded contexts are fitted — the connect modal (whose frame carries
      * a definite height, see modal.css) and fullscreen. Everywhere else the
@@ -416,7 +417,14 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
         if (videoWidth <= 0 || videoHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
             return;
         }
-        const scale = Math.min(availWidth / videoWidth, availHeight / videoHeight);
+        const scaleX = availWidth / videoWidth;
+        const scaleY = availHeight / videoHeight;
+        const contain = Math.min(scaleX, scaleY);
+        const cover = Math.max(scaleX, scaleY);
+        // Fill the box (no letterbox bars) unless the device and the box differ
+        // so much in shape that filling would throw away a large slice of the
+        // screen — a landscape device in a portrait hole then keeps its bars.
+        const scale = cover / contain <= 1.6 ? cover : contain;
         const cssWidth = Math.max(1, Math.floor(videoWidth * scale));
         const cssHeight = Math.max(1, Math.floor(videoHeight * scale));
         for (const canvas of targets) {

@@ -83,6 +83,10 @@
     min-height: 0;
     place-items: center;
     background-color: #000;
+    /* In bounded contexts (modal / fullscreen) the player fills the cell and
+       crops the overhang here, so the picture never spills over the toolbox.
+       Unbounded contexts keep their viewport caps and never overflow. */
+    overflow: hidden;
     /* Grid layout + the canvas max-width/max-height caps control the displayed
      * cell size with correct aspect; `.video` itself stays auto. The device
      * resolution is exposed as the --video-width / --video-height custom props
