@@ -487,6 +487,43 @@ export class StreamClientScrcpy
 
         const deviceView = document.createElement('div');
         deviceView.className = 'device-view';
+
+        // Fullscreen hides the toolbox so the picture gets the whole screen; a
+        // transparent strip along the right edge slides it in, and it slides back
+        // out after a few idle seconds (the toolbox floats over the picture, so
+        // showing it never resizes the stream).
+        const TOOLBAR_VISIBLE = 'toolbar-visible';
+        const TOOLBAR_AUTO_HIDE_MS = 5000;
+        let toolbarAutoHide: number | undefined;
+        const hideFullscreenToolbar = () => {
+            deviceView.classList.remove(TOOLBAR_VISIBLE);
+            if (toolbarAutoHide !== undefined) {
+                window.clearTimeout(toolbarAutoHide);
+                toolbarAutoHide = undefined;
+            }
+        };
+        const showFullscreenToolbar = () => {
+            deviceView.classList.add(TOOLBAR_VISIBLE);
+            if (toolbarAutoHide !== undefined) {
+                window.clearTimeout(toolbarAutoHide);
+            }
+            toolbarAutoHide = window.setTimeout(hideFullscreenToolbar, TOOLBAR_AUTO_HIDE_MS);
+        };
+        const edgeZone = document.createElement('div');
+        edgeZone.className = 'fullscreen-edge-zone';
+        edgeZone.addEventListener('pointerdown', (ev: PointerEvent) => {
+            // Swallow it: the strip sits above the touch canvas, and a tap there
+            // must reveal the toolbox instead of hitting the device's edge.
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (deviceView.classList.contains(TOOLBAR_VISIBLE)) {
+                hideFullscreenToolbar();
+            } else {
+                showFullscreenToolbar();
+            }
+        });
+        deviceView.appendChild(edgeZone);
+
         // Re-fit the picture whenever the box changes: window resize, orientation
         // change and fullscreen toggles all land here. BasePlayer.fitCanvasToParent
         // only acts in bounded contexts (modal / fullscreen) and clears itself
@@ -495,6 +532,7 @@ export class StreamClientScrcpy
         // the next frame and once more after the transition — otherwise the
         // picture is fitted to the pre-transition box and looks clipped.
         const onViewportResize = () => {
+            hideFullscreenToolbar();
             this.player?.fitCanvasToParent();
             requestAnimationFrame(() => this.player?.fitCanvasToParent());
             setTimeout(() => this.player?.fitCanvasToParent(), 250);
@@ -509,6 +547,7 @@ export class StreamClientScrcpy
             // Mark that the upcoming WebSocket close is user-initiated so
             // onDisconnected does not fire the public onErrorReceived hook.
             this.isStopping = true;
+            hideFullscreenToolbar();
             window.removeEventListener('resize', onViewportResize);
             document.removeEventListener('fullscreenchange', onViewportResize);
             document.removeEventListener('orientationchange', onViewportResize);
