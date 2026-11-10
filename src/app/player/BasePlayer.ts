@@ -382,18 +382,24 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
     }
 
     /**
-     * Size the video and touch canvases to fill the parent box at the device
-     * aspect ratio (falling back to a letterboxed fit when the shapes differ too
-     * much to fill without heavy cropping).
+     * Size the video and touch canvases to the device aspect ratio, fitted whole
+     * into the available box.
      *
-     * Only bounded contexts are fitted — the connect modal (whose frame carries
-     * a definite height, see modal.css) and fullscreen. Everywhere else the
-     * parent grows with the canvas, so feeding its height back would ratchet the
-     * picture smaller on each call; those contexts keep the viewport caps from
-     * the stylesheet. Percentage caps alone cannot do this job inside the modal:
-     * `.video` is a grid whose implicit row is content-sized, so a percentage
-     * max-height on the canvas resolves against the canvas itself and does
-     * nothing — that is why the picture stayed clipped.
+     * Two bounded contexts are handled, both because percentage caps cannot do
+     * this job: `.video` is a grid whose implicit row is content-sized, so a
+     * percentage max-height on the canvas resolves against the canvas itself and
+     * never shrinks it.
+     *
+     * - Fullscreen: fit inside the screen (bars on the short axis; never crop).
+     * - Connect modal: the frame hugs the picture (CSS keeps it auto-height), so
+     *   the box cannot be measured before the size is known. Derive it from the
+     *   viewport instead, fit the picture in whole, and pin the device view to the
+     *   resulting height — the frame then shrinks to the picture, which is the
+     *   only way to have no letterbox bars without cropping anything.
+     *
+     * Everywhere else the parent grows with the canvas, so feeding its height
+     * back would ratchet the picture smaller; those contexts keep the viewport
+     * caps from the stylesheet and this method clears its own inline values.
      */
     public fitCanvasToParent(): void {
         const parent = this.parentElement;
@@ -401,35 +407,60 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
             return;
         }
         const targets = [this.tag, this.touchableCanvas];
-        const bounded = !!parent.closest('dialog.modal') || !!document.fullscreenElement;
-        if (!bounded) {
+        const deviceView = parent.parentElement;
+        const inModal = !!parent.closest('dialog.modal');
+        const inFullscreen = !!document.fullscreenElement;
+        if (!inModal && !inFullscreen) {
             for (const canvas of targets) {
                 canvas.style.removeProperty('width');
                 canvas.style.removeProperty('height');
             }
+            deviceView?.style.removeProperty('height');
             return;
         }
         const videoSize = this.screenInfo?.videoSize;
         const videoWidth = videoSize?.width ?? this.videoWidth;
         const videoHeight = videoSize?.height ?? this.videoHeight;
-        const availWidth = parent.clientWidth;
-        const availHeight = parent.clientHeight;
-        if (videoWidth <= 0 || videoHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
+        if (videoWidth <= 0 || videoHeight <= 0) {
             return;
         }
-        const scaleX = availWidth / videoWidth;
-        const scaleY = availHeight / videoHeight;
-        const contain = Math.min(scaleX, scaleY);
-        const cover = Math.max(scaleX, scaleY);
-        // Fill the box (no letterbox bars) unless the device and the box differ
-        // so much in shape that filling would throw away a large slice of the
-        // screen — a landscape device in a portrait hole then keeps its bars.
-        const scale = cover / contain <= 1.6 ? cover : contain;
+
+        let availWidth: number;
+        let availHeight: number;
+        if (inFullscreen) {
+            availWidth = parent.clientWidth;
+            availHeight = parent.clientHeight;
+        } else {
+            const toolbar = deviceView?.querySelector<HTMLElement>('.control-buttons-list');
+            // 90vh tall (max-height of the frame) and 95vw wide minus the toolbox
+            // and the frame's border/padding.
+            availWidth = Math.floor(window.innerWidth * 0.95) - (toolbar?.offsetWidth ?? 0) - 32;
+            availHeight = Math.floor(window.innerHeight * 0.9);
+        }
+        if (availWidth <= 0 || availHeight <= 0) {
+            return;
+        }
+
+        // Always fit the picture in whole — never fill-and-crop. The aspect ratio
+        // must stay exact: a cropped screen loses the on-screen navigation bar and
+        // the edges of the desktop, which is far worse than bars.
+        const scale = Math.min(availWidth / videoWidth, availHeight / videoHeight);
         const cssWidth = Math.max(1, Math.floor(videoWidth * scale));
         const cssHeight = Math.max(1, Math.floor(videoHeight * scale));
         for (const canvas of targets) {
             canvas.style.width = `${cssWidth}px`;
             canvas.style.height = `${cssHeight}px`;
+        }
+        if (!deviceView) {
+            return;
+        }
+        if (inFullscreen) {
+            deviceView.style.removeProperty('height');
+        } else {
+            // Pin the row to the picture: the toolbox stretches to the same height
+            // (and its overflow scrolls) instead of growing the frame past the
+            // picture and reintroducing bars.
+            deviceView.style.height = `${cssHeight}px`;
         }
     }
 

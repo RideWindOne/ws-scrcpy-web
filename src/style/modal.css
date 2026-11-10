@@ -535,30 +535,16 @@ dialog.connect-modal .modal-frame {
     max-width: 95vw;
 }
 
-/* Phones: a max-height alone leaves the frame height content-driven, so the
- * percentage caps below cannot resolve and the canvas falls back to its
- * intrinsic (device-pixel) size — taller than the box, clipped at the bottom
- * (on-screen navigation bars disappeared first). Pin the frame height so the
- * flex chain has a definite height to pass down. Desktop keeps the content-sized
- * frame; its viewport is large enough that the canvas rarely needs scaling. */
-@media (max-width: 640px) {
-    dialog.connect-modal .modal-frame {
-        height: 90vh;
-    }
-}
+/* The frame hugs the picture instead of being stretched to a fixed 90vh: with a
+ * fixed frame height the leftover space below/above a portrait picture shows up
+ * as letterbox bars, and filling it (cover) crops the on-screen navigation bar.
+ * BasePlayer.fitCanvasToParent sizes the picture from the viewport, pins the
+ * .device-view row to that height, and lets the frame shrink around it — no bars,
+ * nothing cropped. max-height below keeps the frame inside the viewport. */
 
-@supports (height: 100dvh) {
-    @media (max-width: 640px) {
-        dialog.connect-modal .modal-frame {
-            height: 90dvh;
-        }
-    }
-}
-
-/* Phones and short viewports (tablet in landscape): drop the title bar entirely
- * so the stream takes the whole 90vh frame. No substitute close control is
- * needed — the toolbox has one, and ConnectModal already blocks backdrop and
- * Escape dismissal to protect the stream. */
+/* Phones: drop the title bar entirely so the stream takes the whole frame. No
+ * substitute close control is needed — the toolbox has one, and ConnectModal
+ * already blocks backdrop and Escape dismissal to protect the stream. */
 @media (max-width: 640px), (max-height: 560px) {
     dialog.connect-modal .modal-header {
         display: none;
@@ -587,11 +573,12 @@ dialog.connect-modal .modal-body {
  * the canvas resolves against the canvas and never shrinks it. The frame
  * therefore carries a definite height (see above) so the box is measurable. */
 dialog.connect-modal .video {
-    /* flex:1 (not width:100%) — the toolbar is a fixed-width sibling, so 100%
-       would push it out of the frame. */
-    flex: 1;
-    min-width: 0;
-    height: 100%;
+    /* Content-sized (not flex:1, not width:100%): the picture is written as inline
+       pixels by the player, the row is pinned to that height in JS, and the frame
+       shrinks around it. The toolbox is a fixed-width sibling, so it stays beside
+       the picture instead of pushing it out. */
+    flex: 0 0 auto;
+    height: auto;
 }
 
 dialog.connect-modal .video-layer,
