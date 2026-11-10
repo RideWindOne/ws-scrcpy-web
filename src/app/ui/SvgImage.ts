@@ -13,6 +13,7 @@ import OfflineSVG from '../../public/images/buttons/offline.svg';
 import RefreshSVG from '../../public/images/buttons/refresh.svg';
 import SettingsSVG from '../../public/images/buttons/settings.svg';
 import ScreenOffSVG from '../../public/images/buttons/screen_off.svg';
+import ScreenRotationSVG from '../../public/images/buttons/screen_rotation.svg';
 import PatternLockSVG from '../../public/images/skin-light/ic_pattern_lock.svg';
 import ToggleOffSVG from '../../public/images/buttons/toggle_off.svg';
 import ToggleOnSVG from '../../public/images/buttons/toggle_on.svg';
@@ -57,6 +58,7 @@ export enum Icon {
     FULLSCREEN = 25,
     SCREEN_OFF = 26,
     PATTERN_LOCK = 27,
+    ROTATE_SCREEN = 28,
 }
 
 export default class SvgImage {
@@ -119,6 +121,8 @@ export default class SvgImage {
                 return ScreenOffSVG;
             case Icon.PATTERN_LOCK:
                 return PatternLockSVG;
+            case Icon.ROTATE_SCREEN:
+                return ScreenRotationSVG;
             default:
                 return '';
         }

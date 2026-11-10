@@ -910,6 +910,18 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '开始扫描',
         en: 'start scan',
     },
+    'rotate_landscape': {
+        zh: '横屏观看',
+        en: 'Landscape view',
+    },
+    'rotate_landscape_hint': {
+        zh: '全屏并锁定为横屏，无需打开手机自动旋转；再点一次恢复',
+        en: 'Fullscreen and lock to landscape — no phone auto-rotate needed. Tap again to restore.',
+    },
+    'rotate_landscape_unsupported': {
+        zh: '该浏览器不支持锁定方向，请打开手机自动旋转',
+        en: 'This browser cannot lock orientation — enable auto-rotate on the phone',
+    },
     'no_devices': {
         zh: '没有已连接的设备。',
         en: 'No devices connected.',

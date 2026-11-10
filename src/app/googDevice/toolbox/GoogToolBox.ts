@@ -218,15 +218,33 @@ export class GoogToolBox extends ToolBox {
         elements.push(clipSet);
 
         const fullscreen = new ToolBoxButton('Toggle fullscreen', SvgImage.Icon.FULLSCREEN);
-        fullscreen.addEventListener('click', () => {
-            const canvas = player.getTouchableElement();
-            let target: HTMLElement | null = canvas;
+        /** The element that owns the stream (the .device-view wrapper). */
+        const streamHost = (): HTMLElement => {
+            let target: HTMLElement | null = player.getTouchableElement();
             while (target && !target.classList?.contains('device-view')) {
                 target = target.parentElement;
             }
-            if (!target) {
-                target = document.body;
+            return target ?? document.body;
+        };
+        /**
+         * Mobile browsers keep the fullscreen frame at the pre-fullscreen size
+         * unless the stream containers are stretched explicitly.
+         */
+        const fitFullscreenFrame = (target: HTMLElement): void => {
+            const videoContainer = target.querySelector('.video') as HTMLElement | null;
+            if (videoContainer) {
+                videoContainer.style.width = '100%';
+                videoContainer.style.height = '100%';
             }
+            const videoLayer = target.querySelector('.video-layer') as HTMLElement | null;
+            if (videoLayer) {
+                videoLayer.style.maxWidth = '100%';
+                videoLayer.style.maxHeight = '100%';
+            }
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+        };
+        fullscreen.addEventListener('click', () => {
+            const target = streamHost();
             if (document.fullscreenElement) {
                 document.exitFullscreen();
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
@@ -241,25 +259,76 @@ export class GoogToolBox extends ToolBox {
                         setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
                         return;
                     }
-                    // 移动端：手动调整 video 容器，确保视频完整显示
-                    const videoContainer = target.querySelector('.video') as HTMLElement;
-                    if (videoContainer) {
-                        videoContainer.style.width = '100%';
-                        videoContainer.style.height = '100%';
-                    }
-                    const videoLayer = target.querySelector('.video-layer') as HTMLElement;
-                    if (videoLayer) {
-                        videoLayer.style.maxWidth = '100%';
-                        videoLayer.style.maxHeight = '100%';
-                    }
-                    setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+                    fitFullscreenFrame(target);
                 }).catch((err) => {
                     console.error('[GoogToolBox] fullscreen request failed:', err);
                 });
             }
         });
-        // 放到最前面
+
+        // Landscape view: phones in portrait show a landscape device in a tiny
+        // strip, and the usual workaround is enabling the phone's auto-rotate.
+        // This button enters fullscreen and asks the browser to lock the
+        // orientation, so the stream fills the screen without touching any
+        // device setting. Tapping it again unlocks and leaves fullscreen.
+        const landscape = new ToolBoxButton(t('rotate_landscape'), SvgImage.Icon.ROTATE_SCREEN);
+        landscape.getElement().title = t('rotate_landscape_hint');
+        landscape.addEventListener('click', () => {
+            // Orientation lock/unlock are not in every TS lib.dom build, so use
+            // a local shape instead of casting ScreenOrientation around.
+            const orientation = window.screen.orientation as unknown as
+                | { lock?: (o: string) => Promise<void>; unlock?: () => void }
+                | undefined;
+            const unlock = (): void => {
+                try {
+                    orientation?.unlock?.();
+                } catch {
+                    // unlock is not supported / not locked
+                }
+            };
+
+            if (document.fullscreenElement) {
+                unlock();
+                void document.exitFullscreen().catch(() => {});
+                setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+                return;
+            }
+            const target = streamHost();
+            const request = target.requestFullscreen?.();
+            if (!request) {
+                // iOS Safari cannot fullscreen a container, so nothing to lock.
+                landscape.getElement().title = t('rotate_landscape_unsupported');
+                return;
+            }
+            request
+                .then(async () => {
+                    // Same mobile fullscreen CSS contract the fullscreen button
+                    // relies on (body[data-ua-mobile="true"] .device-view:fullscreen).
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(
+                        navigator.userAgent
+                    );
+                    document.body.dataset['uaMobile'] = isMobile ? 'true' : 'false';
+                    fitFullscreenFrame(target);
+                    if (!orientation || typeof orientation.lock !== 'function') {
+                        landscape.getElement().title = t('rotate_landscape_unsupported');
+                        return;
+                    }
+                    try {
+                        await orientation.lock('landscape');
+                    } catch {
+                        // Some browsers refuse the lock outside a video-only or
+                        // otherwise restricted fullscreen context.
+                        landscape.getElement().title = t('rotate_landscape_unsupported');
+                    }
+                    setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+                })
+                .catch((err) => {
+                    console.error('[GoogToolBox] landscape request failed:', err);
+                });
+        });
+        // 放到最前面（横屏按钮紧随全屏）
         elements.unshift(fullscreen);
+        elements.unshift(landscape);
 
         return new GoogToolBox(elements);
     }
