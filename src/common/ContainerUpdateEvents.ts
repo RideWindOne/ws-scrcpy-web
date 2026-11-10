@@ -30,6 +30,8 @@ export interface ContainerUpdateStatusResponse {
     container: boolean;
     /** "owner/repo" as configured, or null. */
     repo: string | null;
+    /** GitHub acceleration prefix or HTTP proxy, or null for direct access. */
+    proxy?: string | null;
     /** Latest release the last check found, if any. */
     available?: ContainerGithubRelease;
     lastCheckedAt?: string;

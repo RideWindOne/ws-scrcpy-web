@@ -50,6 +50,28 @@ export function buildContainerUpdatesTab(): HTMLElement {
     repoField.appendChild(saveRepoBtn);
     card1.appendChild(buildItem(buildRow(t('cont_update_github_repo'), repoField)));
 
+    // GitHub access proxy: without one, a network that cannot reach GitHub
+    // answers the check with something the tab can only read as
+    // "unexpected server response".
+    const proxyInput = document.createElement('input');
+    proxyInput.className = 'settings-input';
+    proxyInput.type = 'text';
+    proxyInput.placeholder = t('cont_update_proxy_placeholder');
+    proxyInput.autocomplete = 'off';
+    proxyInput.spellcheck = false;
+    const saveProxyBtn = document.createElement('button');
+    saveProxyBtn.className = 'settings-btn';
+    saveProxyBtn.textContent = t('cont_update_save_repo');
+    const proxyField = document.createElement('span');
+    proxyField.appendChild(proxyInput);
+    proxyField.appendChild(saveProxyBtn);
+    card1.appendChild(buildItem(buildRow(t('cont_update_proxy'), proxyField)));
+    const proxyHint = document.createElement('p');
+    proxyHint.className = 'settings-status';
+    proxyHint.style.gridColumn = '1 / -1';
+    proxyHint.textContent = t('cont_update_proxy_hint');
+    card1.appendChild(buildItem(proxyHint));
+
     const checkBtn = document.createElement('button');
     checkBtn.className = 'settings-btn settings-btn-primary';
     checkBtn.textContent = t('cont_update_check');
@@ -93,7 +115,7 @@ export function buildContainerUpdatesTab(): HTMLElement {
         else if (btn === checkBtn) btn.textContent = t('cont_update_check');
         else if (btn === uploadBtn) btn.textContent = t('cont_update_upload');
         else if (btn === applyBtn) btn.textContent = t('cont_update_apply');
-        else if (btn === saveRepoBtn) btn.textContent = t('cont_update_save_repo');
+        else if (btn === saveRepoBtn || btn === saveProxyBtn) btn.textContent = t('cont_update_save_repo');
     }
 
     let applyBtn: HTMLButtonElement | null = null;
@@ -138,6 +160,7 @@ export function buildContainerUpdatesTab(): HTMLElement {
                 currentVersion = data.currentVersion;
                 versionValue.textContent = `v${data.currentVersion}`;
                 if (data.repo) repoInput.value = data.repo;
+                if (data.proxy) proxyInput.value = data.proxy;
             }
         } catch {
             versionValue.textContent = `v${currentVersion}`;
@@ -310,6 +333,30 @@ export function buildContainerUpdatesTab(): HTMLElement {
                 tabAlert.show('error', (err as Error).message);
             } finally {
                 setBusy(saveRepoBtn, false);
+            }
+        })();
+    });
+
+    saveProxyBtn.addEventListener('click', () => {
+        const proxy = proxyInput.value.trim();
+        void (async () => {
+            setBusy(saveProxyBtn, true);
+            try {
+                const res = await fetch('/api/container-update/proxy', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ proxy }),
+                });
+                const data = (await res.json()) as { ok?: boolean; error?: string };
+                if (!data.ok) {
+                    tabAlert.show('error', localizeServerError(data.error ?? 'save failed'));
+                } else {
+                    tabAlert.show('success', t('cont_update_proxy_saved'));
+                }
+            } catch (err) {
+                tabAlert.show('error', (err as Error).message);
+            } finally {
+                setBusy(saveProxyBtn, false);
             }
         })();
     });

@@ -370,6 +370,22 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '例如 wind/ws-scrcpy-web',
         en: 'e.g. wind/ws-scrcpy-web',
     },
+    'cont_update_proxy': {
+        zh: 'GitHub 加速地址',
+        en: 'GitHub access proxy',
+    },
+    'cont_update_proxy_placeholder': {
+        zh: 'https://gh-proxy.com/ 或 http://127.0.0.1:7890',
+        en: 'https://gh-proxy.com/ or http://127.0.0.1:7890',
+    },
+    'cont_update_proxy_hint': {
+        zh: '检查更新走 GitHub，国内直连常被拦（表现为「unexpected server response」）。填加速前缀（如 https://gh-proxy.com/，会拼在原地址前）或本机 HTTP 代理（带端口，如 http://192.168.1.2:7890）。留空则直连。',
+        en: 'Update checks go to GitHub, which is often blocked (seen as "unexpected server response"). Enter an acceleration prefix (e.g. https://gh-proxy.com/, prepended to the URL) or an HTTP proxy with a port (e.g. http://192.168.1.2:7890). Empty means direct.',
+    },
+    'cont_update_proxy_saved': {
+        zh: '加速地址已保存',
+        en: 'Access proxy saved',
+    },
     'cont_update_save_repo': {
         zh: '保存',
         en: 'Save',

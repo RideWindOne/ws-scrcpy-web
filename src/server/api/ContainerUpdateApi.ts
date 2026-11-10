@@ -67,17 +67,123 @@ function writeUpdateRepo(repo: string): void {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// GitHub access proxy (<DATA_ROOT>/container-update-proxy.json).
+//
+// A NAS behind a network that cannot talk to GitHub answers the update check
+// with nothing usable, and the tab can only report "unexpected server response".
+// Two ways out, both configured by the same one-line field:
+//
+//   - an acceleration *prefix* (``https://gh-proxy.com/``): every GitHub URL is
+//     requested as ``<prefix><original url>``. This covers both api.github.com
+//     look-ups and the release asset download.
+//   - an HTTP proxy (``http://192.168.1.2:7890``): the request keeps its real
+//     URL and is routed through the proxy with undici's ProxyAgent.
+//
+// The form decides which: a value that is scheme://host:port with nothing after
+// the port is a proxy, anything else is a prefix.
+
+function proxyFilePath(): string {
+    const root = resolveDataRoot(process.env) ?? os.tmpdir();
+    return path.join(root, 'container-update-proxy.json');
+}
+
+/** The configured GitHub prefix/proxy, or null when GitHub is reached directly. */
+export function readUpdateProxy(): string | null {
+    const fromEnv = process.env['WS_SCRCPY_UPDATE_PROXY'];
+    if (fromEnv && fromEnv.length > 0) return fromEnv;
+    try {
+        const raw = fs.readFileSync(proxyFilePath(), 'utf8');
+        const parsed = JSON.parse(raw) as { proxy?: unknown };
+        if (typeof parsed.proxy === 'string' && parsed.proxy.length > 0) return parsed.proxy;
+    } catch {
+        // Not configured yet — direct access, the previous behaviour.
+    }
+    return null;
+}
+
+function writeUpdateProxy(proxy: string): void {
+    const file = proxyFilePath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ proxy }, null, 2));
+    fs.renameSync(tmp, file);
+}
+
+/**
+ * `scheme://host:port` — the port is what marks a value as a routing proxy.
+ * A bare host (`https://gh-proxy.com`) is an acceleration prefix instead, which
+ * is the far more common thing to type here.
+ */
+const PROXY_URL_RE = /^(http|https|socks|socks5):\/\/(?:[^/:@]+|\[[^\]]+\]):[0-9]+$/i;
+
+/** True when the configured value routes requests instead of rewriting URLs. */
+export function isProxyUrl(value: string): boolean {
+    return PROXY_URL_RE.test(value.trim());
+}
+
+/**
+ * Map a GitHub URL through the configured access proxy.
+ *
+ * A proxied request is returned unchanged — it is routed, not rewritten — so
+ * callers can always pass the result straight to {@link githubFetch}.
+ */
+export function proxifyGithubUrl(rawUrl: string, proxy: string | null): string {
+    if (!proxy) return rawUrl;
+    const trimmed = proxy.trim();
+    if (trimmed.length === 0 || isProxyUrl(trimmed)) return rawUrl;
+    const prefix = trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
+    // Already prefixed (a status response echoing the mirrored URL): leave it.
+    if (rawUrl.startsWith(prefix)) return rawUrl;
+    return `${prefix}${rawUrl}`;
+}
+
+/** undici's ProxyAgent, loaded lazily: it is only needed for the proxy form. */
+async function proxyDispatcher(proxy: string | null): Promise<unknown> {
+    if (!proxy || !isProxyUrl(proxy)) return undefined;
+    try {
+        const undici = (await import('undici')) as { ProxyAgent?: new (url: string) => unknown };
+        if (!undici.ProxyAgent) return undefined;
+        return new undici.ProxyAgent(proxy.trim());
+    } catch (err) {
+        throw new Error(
+            `proxy routing is unavailable in this build (${(err as Error).message}); ` +
+                'use an acceleration prefix such as https://gh-proxy.com/ instead',
+        );
+    }
+}
+
+/** `fetch` for GitHub, honouring the configured prefix or proxy. */
+export async function githubFetch(
+    rawUrl: string,
+    init: RequestInit & { dispatcher?: unknown },
+    proxy: string | null = readUpdateProxy(),
+): Promise<Response> {
+    const dispatcher = await proxyDispatcher(proxy);
+    const target = proxifyGithubUrl(rawUrl, proxy);
+    const opts: Record<string, unknown> = { ...init };
+    if (dispatcher) opts['dispatcher'] = dispatcher;
+    return fetch(target, opts as RequestInit);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // GitHub release look-up.
 
 /** Fetch releases/latest for `owner/repo`. Pure-ish; exported for tests. */
-export async function fetchLatestGithubRelease(repo: string): Promise<ContainerGithubRelease> {
+export async function fetchLatestGithubRelease(
+    repo: string,
+    proxy: string | null = readUpdateProxy(),
+): Promise<ContainerGithubRelease> {
     const url = `https://api.github.com/repos/${encodeURIComponent(repo)}/releases/latest`;
-    const resp = await fetch(url, {
-        headers: {
-            'User-Agent': 'ws-scrcpy-web',
-            Accept: 'application/vnd.github+json',
+    const resp = await githubFetch(
+        url,
+        {
+            headers: {
+                'User-Agent': 'ws-scrcpy-web',
+                Accept: 'application/vnd.github+json',
+            },
         },
-    });
+        proxy,
+    );
     if (!resp.ok) {
         throw new Error(`GitHub API ${resp.status} for ${repo}`);
     }
@@ -289,6 +395,9 @@ export class ContainerUpdateApi {
             if (req.method === 'PATCH' && url === '/api/container-update/repo') {
                 return await this.handleRepo(req, res);
             }
+            if (req.method === 'PATCH' && url === '/api/container-update/proxy') {
+                return await this.handleProxy(req, res);
+            }
             if (req.method === 'POST' && url === '/api/container-update/github-check') {
                 return await this.handleGithubCheck(req, res);
             }
@@ -315,6 +424,7 @@ export class ContainerUpdateApi {
             currentVersion: getAppVersion(),
             container: true,
             repo: readUpdateRepo(),
+            proxy: readUpdateProxy(),
         };
     }
 
@@ -341,6 +451,37 @@ export class ContainerUpdateApi {
         } else {
             writeUpdateRepo(trimmed);
         }
+        const body: ContainerUpdateActionResponse = { ok: true, status: this.buildStatus() };
+        res.writeHead(200);
+        res.end(JSON.stringify(body));
+        return true;
+    }
+
+    /**
+     * Save the GitHub prefix/proxy. An empty value clears it and returns the
+     * check to talking to GitHub directly.
+     */
+    private async handleProxy(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+        const raw = await readJsonBody(req);
+        const proxy = typeof raw['proxy'] === 'string' ? raw['proxy'] : undefined;
+        if (proxy === undefined) {
+            const body: ContainerUpdateErrorResponse = { ok: false, error: 'proxy must be a string' };
+            res.writeHead(400);
+            res.end(JSON.stringify(body));
+            return true;
+        }
+        const trimmed = proxy.trim();
+        if (trimmed.length > 0 && !/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+            const body: ContainerUpdateErrorResponse = {
+                ok: false,
+                error: 'proxy must start with http:// or https://',
+            };
+            res.writeHead(400);
+            res.end(JSON.stringify(body));
+            return true;
+        }
+        writeUpdateProxy(trimmed);
+        if (trimmed.length > 0) log.info(`GitHub access proxy set to ${trimmed}`);
         const body: ContainerUpdateActionResponse = { ok: true, status: this.buildStatus() };
         res.writeHead(200);
         res.end(JSON.stringify(body));
@@ -408,7 +549,7 @@ export class ContainerUpdateApi {
         log.info(`downloading ${asset.name} from ${repo}`);
         const tarPath = path.join(os.tmpdir(), `ws-gh-${Date.now()}.tar.gz`);
         try {
-            const resp = await fetch(asset.url, {
+            const resp = await githubFetch(asset.url, {
                 headers: { 'User-Agent': 'ws-scrcpy-web', Accept: 'application/octet-stream' },
                 redirect: 'follow',
             });
