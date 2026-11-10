@@ -922,6 +922,38 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '该浏览器不支持锁定方向，请打开手机自动旋转',
         en: 'This browser cannot lock orientation — enable auto-rotate on the phone',
     },
+    'edge_zone_title': {
+        zh: '边缘唤出条设置',
+        en: 'Edge strip settings',
+    },
+    'edge_zone_hint': {
+        zh: '全屏时点这条半透明竖条可唤出工具栏，拖滑杆立即生效',
+        en: 'In fullscreen, tap this translucent bar to reveal the toolbox. Sliders apply at once.',
+    },
+    'edge_zone_side': {
+        zh: '位置',
+        en: 'Side',
+    },
+    'edge_zone_left': {
+        zh: '左侧',
+        en: 'Left',
+    },
+    'edge_zone_right': {
+        zh: '右侧',
+        en: 'Right',
+    },
+    'edge_zone_length': {
+        zh: '长度',
+        en: 'Length',
+    },
+    'edge_zone_width': {
+        zh: '宽度',
+        en: 'Thickness',
+    },
+    'edge_zone_button': {
+        zh: '边缘唤出条',
+        en: 'Edge strip',
+    },
     'no_devices': {
         zh: '没有已连接的设备。',
         en: 'No devices connected.',

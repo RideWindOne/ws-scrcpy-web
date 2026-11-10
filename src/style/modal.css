@@ -626,6 +626,65 @@ dialog.connect-modal.stream-error .control-buttons-list {
     max-height: 100%;
 }
 
+/* Edge strip settings: side segments plus two sliders. */
+dialog.edge-zone-modal .modal-frame {
+    width: min(92vw, 420px);
+}
+
+.edge-zone-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 4px 2px 6px;
+}
+
+.edge-zone-hint {
+    opacity: 0.75;
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
+.edge-zone-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.edge-zone-label {
+    min-width: 3.5em;
+}
+
+.edge-zone-value {
+    min-width: 3.5em;
+    opacity: 0.8;
+    font-variant-numeric: tabular-nums;
+}
+
+.edge-zone-segments {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.edge-zone-segment {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.edge-zone-segment.active {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.edge-zone-slider-row .edge-zone-range {
+    flex: 1 1 100%;
+    width: 100%;
+}
+
 /* ── List files modal overrides ── */
 /* biome-ignore lint/style/noDescendingSpecificity: no background here; the earlier higher-specificity rule sets background only — disjoint properties, see the audit note at the top */
 dialog.list-files-modal .modal-frame {

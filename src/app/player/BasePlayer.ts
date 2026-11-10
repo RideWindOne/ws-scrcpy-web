@@ -444,16 +444,22 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
         // fit kept it top-aligned with a large gap at the bottom.
         reset();
 
-        // Available box. Fullscreen is the parent's content box (padding from
-        // env(safe-area-inset-*) keeps the picture clear of the notch/status bar);
-        // the modal frame hugs the picture, so there is nothing to measure before
+        // Available box. Fullscreen is the viewport minus the display safe area
+        // (env(safe-area-inset-*) padding keeps the picture clear of the notch and
+        // gesture bar) — measured from the viewport rather than the parent, whose
+        // size may still be settling right after a fullscreen transition.
+        // The modal frame hugs the picture, so there is nothing to measure before
         // the size is known — derive it from the viewport the same way modal.css
         // caps it (max-width: 100vw - 24, max-height: 90vh) minus the 1px border.
         let availWidth: number;
         let availHeight: number;
         if (inFullscreen) {
-            availWidth = parent.clientWidth;
-            availHeight = parent.clientHeight;
+            const host = deviceView ?? parent;
+            const style = window.getComputedStyle(host);
+            const padX = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+            const padY = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+            availWidth = window.innerWidth - padX;
+            availHeight = window.innerHeight - padY;
         } else {
             availWidth = window.innerWidth - 24 - (toolbar?.offsetWidth ?? 0) - 2;
             availHeight = Math.floor(window.innerHeight * 0.9) - 2;
@@ -474,8 +480,11 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
             canvas.style.width = `${cssWidth}px`;
             canvas.style.height = `${cssHeight}px`;
         }
-        if (!inModal) {
-            // Fullscreen: CSS drives the box; only the canvases are ours.
+        if (inFullscreen) {
+            // Fullscreen: CSS drives the box; only the canvases are ours. (Checked
+            // before `inModal`: a stream inside the connect modal can also go
+            // fullscreen, and pinning `.video` to the picture size then shrank the
+            // picture into a corner instead of filling the screen.)
             reset();
             for (const canvas of [this.tag, this.touchableCanvas]) {
                 canvas.style.width = `${cssWidth}px`;

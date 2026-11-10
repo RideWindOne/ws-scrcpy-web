@@ -9,6 +9,11 @@ import { AudioPlayer } from '../../audio/AudioPlayer';
 import { BaseClient } from '../../client/BaseClient';
 import { t } from '../../client/i18n';
 import { settingsService } from '../../client/SettingsService';
+import {
+    EDGE_ZONE_CHANGED,
+    applyEdgeZoneConfig,
+    loadEdgeZoneConfig,
+} from './EdgeZoneSettings';
 import { CommandControlMessage } from '../../controlMessage/CommandControlMessage';
 import { ControlMessage } from '../../controlMessage/ControlMessage';
 import type { KeyCodeControlMessage } from '../../controlMessage/KeyCodeControlMessage';
@@ -511,6 +516,19 @@ export class StreamClientScrcpy
         };
         const edgeZone = document.createElement('div');
         edgeZone.className = 'fullscreen-edge-zone';
+        // Side/length/thickness come from the user setting; applying the same
+        // value again on change keeps the bar correct without reconnecting.
+        const applyEdgeZone = () => {
+            const config = loadEdgeZoneConfig();
+            applyEdgeZoneConfig(edgeZone, config);
+            deviceView.classList.toggle('edge-left', config.side === 'left');
+        };
+        applyEdgeZone();
+        const onEdgeZoneChanged = () => {
+            applyEdgeZone();
+            hideFullscreenToolbar();
+        };
+        window.addEventListener(EDGE_ZONE_CHANGED, onEdgeZoneChanged);
         edgeZone.addEventListener('pointerdown', (ev: PointerEvent) => {
             // Swallow it: the strip sits above the touch canvas, and a tap there
             // must reveal the toolbox instead of hitting the device's edge.
@@ -553,6 +571,7 @@ export class StreamClientScrcpy
             document.removeEventListener('fullscreenchange', onViewportResize);
             document.removeEventListener('webkitfullscreenchange', onViewportResize);
             document.removeEventListener('orientationchange', onViewportResize);
+            window.removeEventListener(EDGE_ZONE_CHANGED, onEdgeZoneChanged);
             const parent = deviceView.parentElement;
             if (parent) parent.removeChild(deviceView);
             this.setHandleKeyboardEvents(false);

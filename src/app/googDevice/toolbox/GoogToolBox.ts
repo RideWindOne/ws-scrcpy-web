@@ -10,6 +10,7 @@ import KeyEvent from '../android/KeyEvent';
 import type { StreamClientScrcpy } from '../client/StreamClientScrcpy';
 import { t } from '../../client/i18n';
 import { UnlockDialog } from './UnlockDialog';
+import { EdgeZoneDialog } from './EdgeZoneDialog';
 
 const BUTTONS = [
     {
@@ -168,7 +169,7 @@ export class GoogToolBox extends ToolBox {
         disconnect.addEventListener('click', () => {
             client.stopStream();
         });
-        elements.push(disconnect);
+        // Added last, on top of the list (see the unshifts at the end).
 
         let screenOn = true;
         const powerScreen = new ToolBoxButton('Turn screen off', SvgImage.Icon.SCREEN_OFF);
@@ -326,9 +327,19 @@ export class GoogToolBox extends ToolBox {
                     console.error('[GoogToolBox] landscape request failed:', err);
                 });
         });
+        // Settings for the fullscreen edge strip: side, length, thickness.
+        const edgeZone = new ToolBoxButton(t('edge_zone_button'), SvgImage.Icon.SETTINGS);
+        edgeZone.addEventListener('click', () => {
+            new EdgeZoneDialog();
+        });
+        elements.push(edgeZone);
+
         // 放到最前面（横屏按钮紧随全屏）
         elements.unshift(fullscreen);
         elements.unshift(landscape);
+        // Close/disconnect goes on top: in fullscreen the toolbox column is
+        // centred vertically, and the way out must be the easiest to find.
+        elements.unshift(disconnect);
 
         return new GoogToolBox(elements);
     }
