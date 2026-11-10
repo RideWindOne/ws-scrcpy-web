@@ -206,12 +206,27 @@ function safeHost(url: string): string {
 // ──────────────────────────────────────────────────────────────────────────
 // GitHub release look-up.
 
+/**
+ * The REST path for a repo's latest release.
+ *
+ * `owner/repo` has TWO path segments, and the slash between them must survive.
+ * `encodeURIComponent('owner/repo')` yields `owner%2Frepo`, which GitHub answers
+ * 404 — indistinguishable in the tab from a blocked network, and it made every
+ * update check fail no matter which proxy route was used. Only the two halves
+ * are encoded.
+ */
+export function githubLatestReleaseUrl(repo: string): string {
+    const parts = repo.split('/');
+    const encoded = parts.map((p) => encodeURIComponent(p)).join('/');
+    return `https://api.github.com/repos/${encoded}/releases/latest`;
+}
+
 /** Fetch releases/latest for `owner/repo`. Pure-ish; exported for tests. */
 export async function fetchLatestGithubRelease(
     repo: string,
     proxy: string | null = readUpdateProxy(),
 ): Promise<ContainerGithubRelease> {
-    const url = `https://api.github.com/repos/${encodeURIComponent(repo)}/releases/latest`;
+    const url = githubLatestReleaseUrl(repo);
     const resp = await githubFetch(
         url,
         {
@@ -510,7 +525,7 @@ export class ContainerUpdateApi {
      */
     private async handleDiagnose(res: ServerResponse): Promise<boolean> {
         const repo = readUpdateRepo() || 'RideWindOne/ws-scrcpy-web';
-        const apiUrl = `https://api.github.com/repos/${encodeURIComponent(repo)}/releases/latest`;
+        const apiUrl = githubLatestReleaseUrl(repo);
         const configured = readUpdateProxy();
         const routes: Array<{ kind: string; prefix: string | null }> = [{ kind: 'direct', prefix: null }];
         if (configured) routes.push({ kind: 'configured', prefix: configured });

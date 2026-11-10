@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isProxyUrl, proxifyGithubUrl } from '../api/ContainerUpdateApi';
+import { githubLatestReleaseUrl, isProxyUrl, proxifyGithubUrl } from '../api/ContainerUpdateApi';
 
 /**
  * The Updates tab has one field for two very different things: an acceleration
@@ -46,5 +46,29 @@ describe('GitHub access proxy classification', () => {
         const asset =
             'https://github.com/RideWindOne/ws-scrcpy-web/releases/download/v0.5.14/dist-update-20261111-7008e5c2.tar.gz';
         expect(proxifyGithubUrl(asset, 'https://gh-proxy.com/')).toBe(`https://gh-proxy.com/${asset}`);
+    });
+});
+
+/**
+ * `owner/repo` is two path segments. Encoding the whole string turns the slash
+ * into %2F and GitHub answers 404 — which the tab cannot tell apart from a
+ * blocked network, so every update check failed on every route.
+ */
+describe('GitHub release URL', () => {
+    it('keeps the slash between owner and repo', () => {
+        expect(githubLatestReleaseUrl('RideWindOne/ws-scrcpy-web')).toBe(
+            'https://api.github.com/repos/RideWindOne/ws-scrcpy-web/releases/latest',
+        );
+    });
+
+    it('never emits an encoded slash', () => {
+        expect(githubLatestReleaseUrl('RideWindOne/ws-scrcpy-web')).not.toContain('%2F');
+        expect(githubLatestReleaseUrl('RideWindOne/ws-scrcpy-web')).not.toContain('%2f');
+    });
+
+    it('still escapes characters inside each half', () => {
+        expect(githubLatestReleaseUrl('owner name/repo name')).toBe(
+            'https://api.github.com/repos/owner%20name/repo%20name/releases/latest',
+        );
     });
 });
