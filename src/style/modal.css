@@ -587,6 +587,45 @@ dialog.connect-modal .touch-layer {
     max-height: none;
 }
 
+/* Failure overlay (see ConnectModal). It covers the dead picture but leaves the
+ * toolbox above it: wiping the body used to remove the only way out of the
+ * modal and left nothing but a black box. `position: relative` anchors it. */
+dialog.connect-modal .modal-frame {
+    position: relative;
+}
+
+dialog.connect-modal .connect-modal-error {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.88);
+    color: #f06c75;
+    font-size: 14px;
+    text-align: center;
+    z-index: 2;
+}
+
+dialog.connect-modal .control-buttons-list {
+    position: relative;
+    z-index: 3;
+}
+
+/* On failure the picture never got a measured size, so give the frame a sane
+ * shape instead of leaving it collapsed around the message. */
+dialog.connect-modal.stream-error .modal-frame {
+    width: min(92vw, 640px) !important;
+    height: min(90vh, 720px) !important;
+}
+
+dialog.connect-modal.stream-error .video,
+dialog.connect-modal.stream-error .control-buttons-list {
+    height: auto !important;
+    max-height: 100%;
+}
+
 /* ── List files modal overrides ── */
 /* biome-ignore lint/style/noDescendingSpecificity: no background here; the earlier higher-specificity rule sets background only — disjoint properties, see the audit note at the top */
 dialog.list-files-modal .modal-frame {

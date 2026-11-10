@@ -53,14 +53,15 @@ export class ConnectModal extends Modal {
             onDisconnect: () => this.close(),
             onError: (err) => {
                 console.error('[ConnectModal]', err);
-                // Show the error inline for a few seconds so the user sees why the stream failed
+                // Overlay the reason instead of wiping the body: clearing it threw
+                // away the toolbox, which is the only remaining way to close the
+                // stream, and left a dead black box behind. The overlay sits over
+                // the picture and leaves the toolbox above it (see modal.css).
                 const errorEl = document.createElement('div');
                 errorEl.className = 'connect-modal-error';
                 errorEl.textContent = `stream failed: ${err.message}`;
-                errorEl.style.cssText =
-                    'padding: 24px; color: #f06c75; font-family: monospace; font-size: 14px; text-align: center;';
-                this.bodyEl.innerHTML = '';
                 this.bodyEl.appendChild(errorEl);
+                this.dialog.classList.add('stream-error');
                 // Close after 4s (long enough to read, short enough not to feel stuck)
                 this.closeAfter(4000);
             },

@@ -342,7 +342,9 @@ body[data-ua-mobile="true"] .device-view:fullscreen.toolbar-visible .control-but
 }
 
 /* Invisible touch strip along the right edge; below the toolbox so its buttons
- * stay tappable once revealed. Only exists in fullscreen (see display:none). */
+ * stay tappable once revealed. Only exists in fullscreen (see display:none).
+ * A translucent bar marks the strip so it is discoverable without covering
+ * anything that matters. */
 .fullscreen-edge-zone {
     display: none;
 }
@@ -352,9 +354,12 @@ body[data-ua-mobile="true"] .device-view:fullscreen .fullscreen-edge-zone {
     position: absolute;
     top: 0;
     right: 0;
-    width: 28px;
+    width: 22px;
     height: 100%;
     z-index: 3;
+    box-sizing: border-box;
+    background: linear-gradient(to left, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.02));
+    border-right: 2px solid rgba(255, 255, 255, 0.65);
 }
 
 /*
