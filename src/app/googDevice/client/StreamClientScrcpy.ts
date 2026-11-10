@@ -13,6 +13,7 @@ import {
     EDGE_ZONE_CHANGED,
     applyEdgeZoneConfig,
     loadEdgeZoneConfig,
+    saveEdgeZoneConfig,
 } from './EdgeZoneSettings';
 import { CommandControlMessage } from '../../controlMessage/CommandControlMessage';
 import { ControlMessage } from '../../controlMessage/ControlMessage';
@@ -516,8 +517,8 @@ export class StreamClientScrcpy
         };
         const edgeZone = document.createElement('div');
         edgeZone.className = 'fullscreen-edge-zone';
-        // Side/length/thickness come from the user setting; applying the same
-        // value again on change keeps the bar correct without reconnecting.
+        // Side/length/thickness/position come from the user setting; applying the
+        // same value again on change keeps the bar correct without reconnecting.
         const applyEdgeZone = () => {
             const config = loadEdgeZoneConfig();
             applyEdgeZoneConfig(edgeZone, config);
@@ -529,16 +530,62 @@ export class StreamClientScrcpy
             hideFullscreenToolbar();
         };
         window.addEventListener(EDGE_ZONE_CHANGED, onEdgeZoneChanged);
+
+        // Tap reveals/hides the toolbox; dragging moves the bar up and down
+        // instead. Without the drag the only way to reposition it was a slider in
+        // a dialog, which is awkward while fullscreen.
+        const DRAG_THRESHOLD_PX = 8;
+        let dragStartY = 0;
+        let dragging = false;
+        let dragOriginOffset = 50;
+        const endDrag = (ev: PointerEvent) => {
+            edgeZone.removeEventListener('pointermove', onPointerMove);
+            edgeZone.removeEventListener('pointerup', endDrag);
+            edgeZone.removeEventListener('pointercancel', endDrag);
+            if (edgeZone.hasPointerCapture?.(ev.pointerId)) {
+                edgeZone.releasePointerCapture(ev.pointerId);
+            }
+            if (!dragging) {
+                if (deviceView.classList.contains(TOOLBAR_VISIBLE)) {
+                    hideFullscreenToolbar();
+                } else {
+                    showFullscreenToolbar();
+                }
+                return;
+            }
+            const config = loadEdgeZoneConfig();
+            saveEdgeZoneConfig({ ...config, offset: currentOffset });
+        };
+        let currentOffset = 50;
+        const onPointerMove = (ev: PointerEvent) => {
+            const dy = ev.clientY - dragStartY;
+            if (!dragging && Math.abs(dy) < DRAG_THRESHOLD_PX) {
+                return;
+            }
+            if (!dragging) {
+                dragging = true;
+                currentOffset = dragOriginOffset;
+                dragStartY = ev.clientY;
+            }
+            const height = deviceView.clientHeight || window.innerHeight;
+            currentOffset = Math.min(100, Math.max(0, currentOffset + (dy / height) * 100));
+            dragStartY = ev.clientY;
+            edgeZone.style.top = `${currentOffset}%`;
+        };
         edgeZone.addEventListener('pointerdown', (ev: PointerEvent) => {
-            // Swallow it: the strip sits above the touch canvas, and a tap there
-            // must reveal the toolbox instead of hitting the device's edge.
+            // Swallow it: the strip sits above the touch canvas, and touching it
+            // must drive the strip, not the device's edge.
             ev.preventDefault();
             ev.stopPropagation();
-            if (deviceView.classList.contains(TOOLBAR_VISIBLE)) {
-                hideFullscreenToolbar();
-            } else {
-                showFullscreenToolbar();
-            }
+            const config = loadEdgeZoneConfig();
+            dragging = false;
+            dragStartY = ev.clientY;
+            dragOriginOffset = config.offset;
+            currentOffset = config.offset;
+            edgeZone.setPointerCapture?.(ev.pointerId);
+            edgeZone.addEventListener('pointermove', onPointerMove);
+            edgeZone.addEventListener('pointerup', endDrag);
+            edgeZone.addEventListener('pointercancel', endDrag);
         });
         deviceView.appendChild(edgeZone);
 

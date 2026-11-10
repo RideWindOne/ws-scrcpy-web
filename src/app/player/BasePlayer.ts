@@ -444,22 +444,29 @@ export abstract class BasePlayer extends TypedEmitter<PlayerEvents> {
         // fit kept it top-aligned with a large gap at the bottom.
         reset();
 
-        // Available box. Fullscreen is the viewport minus the display safe area
-        // (env(safe-area-inset-*) padding keeps the picture clear of the notch and
-        // gesture bar) — measured from the viewport rather than the parent, whose
-        // size may still be settling right after a fullscreen transition.
+        // Available box. Fullscreen: the parent's content box, measured *after*
+        // reset() so it reflects the CSS-given size (padding from
+        // env(safe-area-inset-*) is already subtracted by box-sizing) instead of
+        // a leftover inline size. Fall back to the viewport minus that padding
+        // when the box cannot be read yet (transition still settling).
         // The modal frame hugs the picture, so there is nothing to measure before
         // the size is known — derive it from the viewport the same way modal.css
         // caps it (max-width: 100vw - 24, max-height: 90vh) minus the 1px border.
         let availWidth: number;
         let availHeight: number;
         if (inFullscreen) {
-            const host = deviceView ?? parent;
-            const style = window.getComputedStyle(host);
-            const padX = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
-            const padY = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
-            availWidth = window.innerWidth - padX;
-            availHeight = window.innerHeight - padY;
+            availWidth = parent.clientWidth;
+            availHeight = parent.clientHeight;
+            if (availWidth < 32 || availHeight < 32) {
+                const host = deviceView ?? parent;
+                const style = window.getComputedStyle(host);
+                const padX =
+                    (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+                const padY =
+                    (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+                availWidth = window.innerWidth - padX;
+                availHeight = window.innerHeight - padY;
+            }
         } else {
             availWidth = window.innerWidth - 24 - (toolbar?.offsetWidth ?? 0) - 2;
             availHeight = Math.floor(window.innerHeight * 0.9) - 2;

@@ -17,6 +17,8 @@ export interface EdgeZoneConfig {
     length: number;
     /** Bar thickness in CSS px. */
     width: number;
+    /** Centre of the bar as a percentage of the screen height (0..100). */
+    offset: number;
 }
 
 export const EDGE_ZONE_LENGTH_MIN = 32;
@@ -29,6 +31,7 @@ export const EDGE_ZONE_DEFAULTS: EdgeZoneConfig = {
     side: 'right',
     length: 60,
     width: 22,
+    offset: 50,
 };
 
 export const EDGE_ZONE_CHANGED = 'edge-zone-changed';
@@ -49,10 +52,12 @@ function parse(value: unknown): EdgeZoneConfig | null {
     if (!Number.isFinite(length) || !Number.isFinite(width)) {
         return null;
     }
+    const offset = Number(raw.offset);
     return {
         side,
         length: clamp(length, EDGE_ZONE_LENGTH_MIN, EDGE_ZONE_LENGTH_MAX),
         width: clamp(width, EDGE_ZONE_WIDTH_MIN, EDGE_ZONE_WIDTH_MAX),
+        offset: clamp(Number.isFinite(offset) ? offset : EDGE_ZONE_DEFAULTS.offset, 0, 100),
     };
 }
 
@@ -75,6 +80,7 @@ export function saveEdgeZoneConfig(config: EdgeZoneConfig): EdgeZoneConfig {
         side: config.side === 'left' ? 'left' : 'right',
         length: clamp(config.length, EDGE_ZONE_LENGTH_MIN, EDGE_ZONE_LENGTH_MAX),
         width: clamp(config.width, EDGE_ZONE_WIDTH_MIN, EDGE_ZONE_WIDTH_MAX),
+        offset: clamp(Number.isFinite(config.offset) ? config.offset : EDGE_ZONE_DEFAULTS.offset, 0, 100),
     };
     try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -88,7 +94,7 @@ export function saveEdgeZoneConfig(config: EdgeZoneConfig): EdgeZoneConfig {
 /** Apply a config to the strip element (inline, so CSS only supplies the look). */
 export function applyEdgeZoneConfig(zone: HTMLElement, config: EdgeZoneConfig): void {
     const style = zone.style;
-    style.top = '50%';
+    style.top = `${config.offset}%`;
     style.bottom = '';
     style.height = `${config.length}px`;
     style.width = `${config.width}px`;
