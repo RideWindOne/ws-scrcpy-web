@@ -555,6 +555,53 @@ dialog.connect-modal .modal-frame {
     }
 }
 
+/* Phones and short viewports (tablet in landscape): the title bar spends height
+ * the picture needs, and the frame is already a fixed 90vh — so collapse the bar
+ * and let the stream take the whole height. ConnectModal deliberately blocks
+ * backdrop and Escape dismissal to protect the stream, so the × is kept as a
+ * small floating control over the corner instead of losing the only exit. */
+@media (max-width: 640px), (max-height: 560px) {
+    dialog.connect-modal .modal-frame {
+        position: relative;
+    }
+
+    dialog.connect-modal .modal-header {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: auto;
+        z-index: 3;
+        justify-content: flex-end;
+        padding: 0;
+        border-bottom: 0;
+        background: transparent;
+        pointer-events: none;
+    }
+
+    dialog.connect-modal .modal-title,
+    dialog.connect-modal .modal-header-controls .theme-toggle {
+        display: none;
+    }
+
+    dialog.connect-modal .modal-header-controls {
+        gap: 0;
+        padding: 0.25rem;
+    }
+
+    dialog.connect-modal .modal-close {
+        pointer-events: auto;
+        display: grid;
+        place-items: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        padding: 0;
+        border-radius: 50%;
+        font-size: 16px;
+        color: #f2f2f2;
+        background: rgba(0, 0, 0, 0.42);
+    }
+}
+
 /* biome-ignore lint/style/noDescendingSpecificity: dialog.connect-modal and dialog.modal.shell-modal are mutually exclusive — no element matches both */
 dialog.connect-modal .modal-body {
     padding: 0;
