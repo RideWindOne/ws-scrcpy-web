@@ -490,8 +490,15 @@ export class StreamClientScrcpy
         // Re-fit the picture whenever the box changes: window resize, orientation
         // change and fullscreen toggles all land here. BasePlayer.fitCanvasToParent
         // only acts in bounded contexts (modal / fullscreen) and clears itself
-        // elsewhere, so this is a no-op on the plain stream page.
-        const onViewportResize = () => this.player?.fitCanvasToParent();
+        // elsewhere, so this is a no-op on the plain stream page. Fullscreen and
+        // orientation transitions settle a frame or two later, so re-measure on
+        // the next frame and once more after the transition — otherwise the
+        // picture is fitted to the pre-transition box and looks clipped.
+        const onViewportResize = () => {
+            this.player?.fitCanvasToParent();
+            requestAnimationFrame(() => this.player?.fitCanvasToParent());
+            setTimeout(() => this.player?.fitCanvasToParent(), 250);
+        };
         window.addEventListener('resize', onViewportResize);
         document.addEventListener('fullscreenchange', onViewportResize);
         document.addEventListener('orientationchange', onViewportResize);
