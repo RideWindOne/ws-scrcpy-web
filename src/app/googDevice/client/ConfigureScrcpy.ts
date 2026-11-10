@@ -795,6 +795,7 @@ export class ConfigureScrcpy extends Modal {
         const stayAwakeLabel = document.createElement('label');
         stayAwakeLabel.classList.add('label');
         stayAwakeLabel.innerText = t('stay_awake') + ':';
+        stayAwakeLabel.title = t('stay_awake_hint');
         advancedSection.appendChild(stayAwakeLabel);
         this.stayAwakeCheckbox = document.createElement('input');
         this.stayAwakeCheckbox.type = 'checkbox';
@@ -805,6 +806,7 @@ export class ConfigureScrcpy extends Modal {
         const wakeLockLabel = document.createElement('label');
         wakeLockLabel.classList.add('label');
         wakeLockLabel.innerText = t('keep_screen_on') + ':';
+        wakeLockLabel.title = t('keep_screen_on_hint');
         advancedSection.appendChild(wakeLockLabel);
         this.wakeLockCheckbox = document.createElement('input');
         this.wakeLockCheckbox.type = 'checkbox';
@@ -903,10 +905,14 @@ export class ConfigureScrcpy extends Modal {
             this.lockOnDisconnectCheckbox.checked = !!savedBehavior.lockOnDisconnect;
         }
         if (this.stayAwakeCheckbox) {
-            this.stayAwakeCheckbox.checked = !!savedBehavior.stayAwake;
+            // Default: on — "connected" should mean the device stays awake unless
+            // the user explicitly turned it off before.
+            this.stayAwakeCheckbox.checked = savedBehavior.stayAwake !== false;
         }
         if (this.wakeLockCheckbox) {
-            this.wakeLockCheckbox.checked = !!savedBehavior.wakeLock;
+            // Default: on — keeps the phone/tablet display from sleeping while
+            // the stream is on screen.
+            this.wakeLockCheckbox.checked = savedBehavior.wakeLock !== false;
         }
         if (this.cleanupOnDisconnectCheckbox) {
             this.cleanupOnDisconnectCheckbox.checked = savedBehavior.cleanupOnDisconnect !== false; // default true

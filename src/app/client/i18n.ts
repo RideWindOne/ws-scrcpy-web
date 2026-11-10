@@ -583,12 +583,20 @@ const translations: Record<string, Record<Language, string>> = {
         en: 'Lock on disconnect',
     },
     'stay_awake': {
-        zh: '保持设备唤醒',
-        en: 'Stay awake',
+        zh: '保持设备唤醒（被控设备不熄屏）',
+        en: 'Stay awake (controlled device)',
     },
     'keep_screen_on': {
-        zh: '保持屏幕常亮',
-        en: 'Keep screen on',
+        zh: '保持本机屏幕常亮（浏览器）',
+        en: 'Keep this screen on (browser)',
+    },
+    'stay_awake_hint': {
+        zh: '让被控手机/平板在连接期间保持亮屏；需重新连接后生效',
+        en: 'Keeps the controlled device awake while connected. Takes effect on the next connection.',
+    },
+    'keep_screen_on_hint': {
+        zh: '用浏览器的屏幕唤醒锁保持本机亮屏，切到后台会自动失效、回到前台自动恢复；浏览器无法获得真正的后台运行权限，长时间后台请加入主屏并在系统里允许后台活动',
+        en: 'Uses the browser Screen Wake Lock to keep this display on. It is dropped when the page goes to the background and re-acquired on return. Browsers cannot get real background running: add the page to the home screen and allow background activity in the system for long sessions.',
     },
     'cleanup_on_disconnect': {
         zh: '断开后清理恢复',

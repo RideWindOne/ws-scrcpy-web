@@ -36,6 +36,48 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
     let stopFn: (() => void) | undefined;
     let wakeLockSentinel: { release: () => void } | null = null;
 
+    // The browser drops a screen wake lock whenever the page is hidden (app
+    // switch, screen off), so it has to be requested again on return — without
+    // that the phone falls asleep a few seconds after coming back from another
+    // app, which reads as "it does not stay awake".
+    const releaseWakeLock = (): void => {
+        try {
+            wakeLockSentinel?.release();
+        } catch {
+            // already released
+        }
+        wakeLockSentinel = null;
+    };
+    const acquireWakeLock = (): void => {
+        if (!options.wakeLock || !('wakeLock' in navigator) || !isConnected) {
+            return;
+        }
+        if (wakeLockSentinel || document.visibilityState !== 'visible') {
+            return;
+        }
+        navigator.wakeLock
+            .request('screen')
+            .then((sentinel) => {
+                wakeLockSentinel = sentinel;
+                // Released by the system on hide: forget it so the next
+                // visibilitychange can request a fresh one.
+                (sentinel as unknown as { addEventListener?: (t: string, h: () => void) => void }).addEventListener?.(
+                    'release',
+                    () => {
+                        wakeLockSentinel = null;
+                    },
+                );
+            })
+            .catch((err) => {
+                console.warn('[startStream] Failed to request wake lock:', err);
+            });
+    };
+    const onVisibilityChange = (): void => {
+        if (document.visibilityState === 'visible') {
+            acquireWakeLock();
+        }
+    };
+
     const codecMap: Record<NonNullable<StartStreamOptions['codec']>, string> = {
         h264: 'h264',
         h265: 'h265',
@@ -111,10 +153,8 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
             () => {
                 isConnected = false;
                 // Release wake lock
-                if (wakeLockSentinel) {
-                    wakeLockSentinel.release();
-                    wakeLockSentinel = null;
-                }
+                releaseWakeLock();
+                document.removeEventListener('visibilitychange', onVisibilityChange);
                 options.onDisconnect?.();
             },
             options.deviceKind,
@@ -129,14 +169,10 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
         const hooked = instance as unknown as StreamClientInstanceHooks;
         hooked.onMetadataReceived = (info: StreamInfo) => {
             isConnected = true;
-            // Request wake lock if enabled
-            if (options.wakeLock && 'wakeLock' in navigator) {
-                navigator.wakeLock.request('screen').then((sentinel) => {
-                    wakeLockSentinel = sentinel;
-                }).catch((err) => {
-                    console.warn('[startStream] Failed to request wake lock:', err);
-                });
-            }
+            // Keep the display awake while the stream runs, and re-arm it every
+            // time the page becomes visible again.
+            document.addEventListener('visibilitychange', onVisibilityChange);
+            acquireWakeLock();
             options.onConnect?.(info);
         };
         hooked.onErrorReceived = (err: Error) => {
@@ -158,6 +194,8 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
         stop(): void {
             if (stopped) return;
             stopped = true;
+            releaseWakeLock();
+            document.removeEventListener('visibilitychange', onVisibilityChange);
             stopFn?.();
         },
         get isConnected() {
