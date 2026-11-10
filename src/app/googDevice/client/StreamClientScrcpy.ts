@@ -539,37 +539,42 @@ export class StreamClientScrcpy
         let dragging = false;
         let dragOriginOffset = 50;
         let currentOffset = 50;
-        const endDrag = (ev: PointerEvent) => {
-            edgeZone.removeEventListener('pointermove', onPointerMove);
-            edgeZone.removeEventListener('pointerup', endDrag);
-            edgeZone.removeEventListener('pointercancel', onPointerCancel);
-            if (edgeZone.hasPointerCapture?.(ev.pointerId)) {
-                edgeZone.releasePointerCapture(ev.pointerId);
-            }
-            if (!dragging) {
-                // A tap (nothing moved) toggles the toolbox; a drag never does.
-                if (deviceView.classList.contains(TOOLBAR_VISIBLE)) {
-                    hideFullscreenToolbar();
-                } else {
-                    showFullscreenToolbar();
-                }
+        let dragPointerId: number | null = null;
+        // Window-level listeners instead of pointer capture: capture left the strip
+        // owning every later touch when a gesture ended without pointerup (page
+        // hidden, parent removed, another finger), which froze the whole page.
+        const detachDrag = () => {
+            window.removeEventListener('pointermove', onPointerMove, true);
+            window.removeEventListener('pointerup', endDrag, true);
+            window.removeEventListener('pointercancel', onPointerCancel, true);
+            dragPointerId = null;
+        };
+        const finishDrag = () => {
+            detachDrag();
+            if (dragging) {
+                const config = loadEdgeZoneConfig();
+                saveEdgeZoneConfig({ ...config, offset: currentOffset });
                 return;
             }
-            const config = loadEdgeZoneConfig();
-            saveEdgeZoneConfig({ ...config, offset: currentOffset });
+            // A tap (nothing moved) toggles the toolbox; a drag never does.
+            if (deviceView.classList.contains(TOOLBAR_VISIBLE)) {
+                hideFullscreenToolbar();
+            } else {
+                showFullscreenToolbar();
+            }
+        };
+        const endDrag = () => {
+            finishDrag();
         };
         const onPointerCancel = () => {
             // The gesture was taken away mid-drag (another touch, system back
             // gesture): keep the bar where the finger left it instead of snapping.
-            edgeZone.removeEventListener('pointermove', onPointerMove);
-            edgeZone.removeEventListener('pointerup', endDrag);
-            edgeZone.removeEventListener('pointercancel', onPointerCancel);
-            if (dragging) {
-                const config = loadEdgeZoneConfig();
-                saveEdgeZoneConfig({ ...config, offset: currentOffset });
-            }
+            endDrag();
         };
         const onPointerMove = (ev: PointerEvent) => {
+            if (dragPointerId !== null && ev.pointerId !== dragPointerId) {
+                return;
+            }
             // Distance from the press point, not frame-to-frame: this keeps the
             // bar under the finger for the whole gesture (no lost pixels, no
             // need to drag several times).
@@ -584,21 +589,27 @@ export class StreamClientScrcpy
             const height = deviceView.clientHeight || window.innerHeight;
             currentOffset = Math.min(100, Math.max(0, dragOriginOffset + (dy / height) * 100));
             edgeZone.style.top = `${currentOffset}%`;
+            if (ev.cancelable) {
+                ev.preventDefault();
+            }
         };
         edgeZone.addEventListener('pointerdown', (ev: PointerEvent) => {
             // Swallow it: the strip sits above the touch canvas, and touching it
             // must drive the strip, not the device's edge.
             ev.preventDefault();
             ev.stopPropagation();
+            if (dragPointerId !== null) {
+                detachDrag();
+            }
             const config = loadEdgeZoneConfig();
             dragging = false;
+            dragPointerId = ev.pointerId;
             dragStartY = ev.clientY;
             dragOriginOffset = config.offset;
             currentOffset = config.offset;
-            edgeZone.setPointerCapture?.(ev.pointerId);
-            edgeZone.addEventListener('pointermove', onPointerMove);
-            edgeZone.addEventListener('pointerup', endDrag);
-            edgeZone.addEventListener('pointercancel', onPointerCancel);
+            window.addEventListener('pointermove', onPointerMove, true);
+            window.addEventListener('pointerup', endDrag, true);
+            window.addEventListener('pointercancel', onPointerCancel, true);
         });
         deviceView.appendChild(edgeZone);
 
@@ -627,6 +638,7 @@ export class StreamClientScrcpy
             // onDisconnected does not fire the public onErrorReceived hook.
             this.isStopping = true;
             hideFullscreenToolbar();
+            detachDrag();
             window.removeEventListener('resize', onViewportResize);
             document.removeEventListener('fullscreenchange', onViewportResize);
             document.removeEventListener('webkitfullscreenchange', onViewportResize);
