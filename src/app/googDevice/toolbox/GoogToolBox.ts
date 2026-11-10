@@ -330,7 +330,24 @@ export class GoogToolBox extends ToolBox {
         // Settings for the fullscreen edge strip: side, length, thickness.
         const edgeZone = new ToolBoxButton(t('edge_zone_button'), SvgImage.Icon.SETTINGS);
         edgeZone.addEventListener('click', () => {
-            new EdgeZoneDialog();
+            // Leave fullscreen first: while an element owns the screen nothing
+            // outside it is rendered or receives touches, so a dialog opened on
+            // top would be invisible and its sliders undraggable.
+            const fullscreen =
+                document.fullscreenElement ??
+                (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
+                null;
+            if (!fullscreen) {
+                new EdgeZoneDialog();
+                return;
+            }
+            const open = () => new EdgeZoneDialog();
+            const request = document.exitFullscreen?.();
+            if (request) {
+                void request.then(open).catch(open);
+            } else {
+                open();
+            }
         });
         elements.push(edgeZone);
 

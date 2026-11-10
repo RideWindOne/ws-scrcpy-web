@@ -339,9 +339,14 @@ body[data-ua-mobile="true"] .device-view:fullscreen canvas {
  * screen, and floats over it when slid in — absolute, so revealing it never
  * resizes the stream. Tap the edge strip (.fullscreen-edge-zone) to toggle;
  * StreamClientScrcpy slides it back out after a few idle seconds.
- * Buttons are centred vertically (top and bottom entries are equally easy to
- * reach) and the column keeps its own scroll when it is taller than the screen:
- * `safe center` degrades to top alignment exactly in that case. */
+ *
+ * The column centres its buttons vertically without breaking scrolling:
+ * `justify-content: center` clips the overflow of a flex column (the top items
+ * become unreachable), so the centring is done with auto margins on the first
+ * and last child instead — they collapse to 0 as soon as the content is taller
+ * than the screen, leaving a normally scrollable column. Each button also keeps
+ * its natural height: flex column would otherwise shrink them and the column
+ * would never overflow (which is what made it stop scrolling). */
 body[data-ua-mobile="true"] .device-view:fullscreen .control-buttons-list {
     position: absolute;
     top: 0;
@@ -351,14 +356,27 @@ body[data-ua-mobile="true"] .device-view:fullscreen .control-buttons-list {
     z-index: 4;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    justify-content: safe center;
     padding-block: 8px;
     box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
     background: rgba(0, 0, 0, 0.55);
     transform: translateX(100%);
     transition: transform 0.18s ease-out;
     pointer-events: none;
+}
+
+body[data-ua-mobile="true"] .device-view:fullscreen .control-buttons-list > * {
+    flex: 0 0 auto;
+}
+
+body[data-ua-mobile="true"] .device-view:fullscreen .control-buttons-list > :first-child {
+    margin-top: auto;
+}
+
+body[data-ua-mobile="true"] .device-view:fullscreen .control-buttons-list > :last-child {
+    margin-bottom: auto;
 }
 
 /* Strip on the left instead of the right (user setting): the column slides in
