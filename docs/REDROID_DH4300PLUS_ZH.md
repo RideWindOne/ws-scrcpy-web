@@ -45,7 +45,7 @@ wget -O "$MOD_DIR/binder_linux.ko" \
   https://github.com/hling110/binder_linux/releases/download/0.0.1/binder_linux.ko
 
 wget -O "$MOD_DIR/rk_dma32_heap.ko" \
-  https://github.com/RideWindOne/ws-scrcpy-web/releases/download/v0.5.13/rk_dma32_heap.ko
+  https://github.com/RideWindOne/ws-scrcpy-web/releases/download/v0.5.17/rk_dma32_heap.ko
 ```
 
 校验一下（`rk_dma32_heap.ko` 应为 384080 字节）：
