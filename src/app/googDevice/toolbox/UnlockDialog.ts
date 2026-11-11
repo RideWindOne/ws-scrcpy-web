@@ -58,15 +58,6 @@ const HUMAN_HOLD_MS = 80;
 const HUMAN_SWIPE_MS = 420;
 const HUMAN_SWIPE_STEPS = 28;
 
-/**
- * Window name that means the panel is in MIUI/HyperOS always-on display.
- * Deliberately the only one accepted: `miui.systemui.plugin` and the doze
- * service names also appear on an ordinary locked phone, and treating one of
- * those as doze is what used to make the flow press power — turning a lit
- * panel off — and then swipe at a dark screen.
- */
-const AOD_WINDOW_NAME = 'com.miui.aod';
-
 function delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
 }
@@ -441,28 +432,17 @@ export class UnlockDialog extends Modal {
     // ------------------------------------------------------------------
 
     /**
-     * Look, do not press.
+     * Read the awake state for information only — never to decide whether to
+     * proceed.
      *
-     * The state that decides whether a swipe can land is the device's own
-     * `mWakefulness`, not the picture: while it reads Awake the touch channel is
-     * live and the keyguard accepts the gesture, even though the stream may look
-     * black (Android hands scrcpy a black surface while the keyguard is up).
-     *
-     * No key is sent from here. Waking is not needed when the device is already
-     * awake, power would turn a lit panel *off*, and neither key leaves always-on
-     * display — so the only key routes this dialog ever had were the ones that
-     * caused trouble. When the device is genuinely asleep or in doze, say so and
-     * let the user light it.
+     * Measured on the T2S setup: the phone's own panel can be dark while the
+     * touch channel stays live, and a swipe still unlocks it with the picture
+     * visible on the web. So a "not awake" or "doze window present" reading is
+     * not a reason to stop; the only real test of whether a swipe worked is the
+     * dump afterwards. Keys are never pressed here either (power toggles a lit
+     * panel off, and wake cannot leave doze).
      */
-    private async checkAwake(): Promise<void> {
-        const awake = await this.screenAwake();
-        if (awake === false) throw new Error(t('unlock_screen_asleep'));
-        // Unknown (shell route down) is not a reason to stop: nothing is pressed
-        // either way, so a swipe that lands nowhere costs one attempt.
-    }
-
-    /** The device's own `awake` reading, or null when it cannot be obtained. */
-    private async screenAwake(): Promise<boolean | null> {
+    private async readAwake(): Promise<boolean | null> {
         try {
             const res = await fetch(`/api/devices/screen-state?udid=${encodeURIComponent(this.udid)}`);
             if (!res.ok) return null;
@@ -548,31 +528,24 @@ export class UnlockDialog extends Modal {
         await delay(350);
     }
 
-    /** Check that the device is awake, then swipe up from the bottom edge. */
+    /**
+     * Wake the panel with a touch if needed, then swipe up from the bottom edge.
+     *
+     * Nothing here gates the flow: whether the picture is black, whether
+     * `mWakefulness` reads Asleep, whether a doze window shows up in the dump —
+     * none of that means the swipe will fail. The phone's own panel can be dark
+     * while the web picture is visible and the touch channel is live, so the flow
+     * always swipes and lets the subsequent dump decide.
+     */
     private async wakeAndSwipeUp(): Promise<void> {
         this.showStatus(t('unlock_checking'));
         // Tap first: a device that fell asleep during the two-second gap before
         // the first frame only comes back on a touch.
         await this.tapScreen();
-        await this.checkAwake();
+        await this.readAwake();
         await delay(400);
-        // Doze is the one state a swipe cannot get past. Report it instead of
-        // forcing a way out with a power press.
-        if (await this.dozeShowing()) throw new Error(t('unlock_doze_hint'));
         await this.swipeUpViaAdb();
         await delay(700);
-    }
-
-    /**
-     * MIUI/HyperOS always-on display is on screen. Narrow on purpose: the doze
-     * service and `miui.systemui.plugin` also appear in an ordinary locked
-     * phone's hierarchy, and reading one of those as AOD is what made the old
-     * flow press power — turning a lit panel off — and then swipe at a dark
-     * screen while reporting "password field detection".
-     */
-    private async dozeShowing(): Promise<boolean> {
-        const { xml } = await fetchUiHierarchy(this.udid);
-        return !!xml && xml.includes(AOD_WINDOW_NAME);
     }
 
     /**
@@ -656,19 +629,18 @@ export class UnlockDialog extends Modal {
             target = await this.detectUnlockTarget(10000);
         }
         if (target.kind === 'none') {
-            // One last plain swipe, after re-reading the awake state. No key is
-            // pressed here: power toggles a lit panel off, and wake cannot leave
-            // doze, so the only useful report is the doze state below.
+            // One last plain swipe, after a tap and a fresh state reading. No key
+            // is pressed here: power toggles a lit panel off and wake cannot
+            // leave doze, so a key could only make things worse.
             this.showStatus(t('unlock_checking'));
             await this.tapScreen();
-            await this.checkAwake();
+            await this.readAwake();
             await delay(400);
             await this.swipeUpViaAdb();
             await delay(900);
             target = await this.detectUnlockTarget(15000);
         }
         if (target.kind === 'none') {
-            if (await this.dozeShowing()) throw new Error(t('unlock_doze_hint'));
             throw new Error(`${t('unlock_swipe_failed')} [${await this.describeScreen()}]`);
         }
         return target;
@@ -724,10 +696,10 @@ export class UnlockDialog extends Modal {
             },
             // Probing can take tens of seconds. Keeping the screen awake used to
             // mean pressing a wake key; this dialog no longer sends keys at all,
-            // so it re-reads the awake state instead and lets checkAwake report a
-            // device that fell asleep by itself.
+            // so it re-reads the state instead, and a device that fell asleep is
+            // handled by the next attempt's tap.
             onKeepAwake: () => {
-                void this.checkAwake().catch(() => undefined);
+                void this.readAwake();
             },
             onError: (error) => this.showStatus(`${t('unlock_detect_error')}: ${error}`),
         });

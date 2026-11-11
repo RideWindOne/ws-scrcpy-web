@@ -850,17 +850,9 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '正在检测屏幕状态…',
         en: 'Checking screen state…',
     },
-    'unlock_screen_asleep': {
-        zh: '设备处于休眠状态，请先点亮屏幕后再试',
-        en: 'the device is asleep — light the screen first, then retry',
-    },
     'unlock_wake_failed': {
         zh: '屏幕未唤醒，无法继续',
         en: 'Screen did not wake up, cannot continue',
-    },
-    'unlock_doze_hint': {
-        zh: '设备停在息屏显示（画面全黑），请按一次电源键点亮后再试',
-        en: 'device is in always-on display (black picture) — press power once, then retry',
     },
     'unlock_swipe_failed': {
         zh: '自动上滑未生效，请手动上滑一次后重试',
