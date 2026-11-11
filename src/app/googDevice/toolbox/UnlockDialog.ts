@@ -49,6 +49,16 @@ const MOVE_STEPS = 10;
 const STEP_DELAY_MS = 15;
 
 /**
+ * Human-like swipe tuning. A real thumb rests briefly on the glass, travels for
+ * roughly half a second and comes to rest; the keyguard's gesture detector
+ * scores that velocity profile, and a straight 10-point / 150 ms line covering
+ * the same distance is dropped even though it is the right shape and length.
+ */
+const HUMAN_HOLD_MS = 80;
+const HUMAN_SWIPE_MS = 420;
+const HUMAN_SWIPE_STEPS = 28;
+
+/**
  * Window/class fragments that mean the panel is in always-on display rather
  * than on the lock screen. Deliberately narrow: `miui.systemui.plugin` shows up
  * on an ordinary locked MIUI/HyperOS phone too, and pressing power there turns
@@ -469,14 +479,7 @@ export class UnlockDialog extends Modal {
         );
     }
 
-    /** A continuous drag from (x1,y1) to (x2,y2) with interpolated moves. */
-    private drag(x1: number, y1: number, x2: number, y2: number): Promise<void> {
-        this.touch(MotionEvent.ACTION_DOWN, x1, y1);
-        return this.dragMove(x1, y1, x2, y2).then(() => {
-            this.touch(MotionEvent.ACTION_UP, x2, y2);
-        });
-    }
-
+    /** Moves between two points for the pattern drawing path. */
     private async dragMove(x1: number, y1: number, x2: number, y2: number): Promise<void> {
         for (let step = 1; step <= MOVE_STEPS; step++) {
             const x = x1 + ((x2 - x1) * step) / MOVE_STEPS;
@@ -484,6 +487,34 @@ export class UnlockDialog extends Modal {
             this.touch(MotionEvent.ACTION_MOVE, x, y);
             await delay(STEP_DELAY_MS);
         }
+    }
+
+    /**
+     * A drag shaped like a real finger: press, hold for a moment, then travel on
+     * an ease-out profile in many small steps and come to rest before lifting.
+     *
+     * The same distance injected as 10 points over 150 ms was dropped by the
+     * keyguard's gesture detector while the identical swipe by hand unlocked the
+     * phone: the detector scores velocity continuity, not just distance, and a
+     * straight fast line reads as "not a finger". This is why auto-unlock used
+     * to end on "auto swipe did not take effect".
+     */
+    private dragHuman(x1: number, y1: number, x2: number, y2: number, durationMs = HUMAN_SWIPE_MS): Promise<void> {
+        this.touch(MotionEvent.ACTION_DOWN, x1, y1);
+        return (async (): Promise<void> => {
+            // A thumb does not start moving the instant it lands.
+            await delay(HUMAN_HOLD_MS);
+            for (let step = 1; step <= HUMAN_SWIPE_STEPS; step++) {
+                const t = step / HUMAN_SWIPE_STEPS;
+                // Ease-out: most of the distance early, slowing towards the end.
+                const eased = 1 - Math.pow(1 - t, 2.2);
+                this.touch(MotionEvent.ACTION_MOVE, x1 + (x2 - x1) * eased, y1 + (y2 - y1) * eased);
+                await delay(durationMs / HUMAN_SWIPE_STEPS);
+            }
+            // Settle for a frame before lifting, like a finger coming to rest.
+            await delay(40);
+            this.touch(MotionEvent.ACTION_UP, x2, y2);
+        })();
     }
 
     /** Check screen state, wake it if needed, then swipe up from the bottom. */
@@ -537,10 +568,14 @@ export class UnlockDialog extends Modal {
      * camera shortcut on many builds, and a swipe that starts too high above
      * the bottom edge is not taken as the unlock gesture at all — injected
      * touches are indistinguishable from a real finger.
+     *
+     * Starts at 0.99 of the height (inside the gesture/navigation strip, where
+     * a thumb actually begins) and travels to 0.3, which is past every build's
+     * unlock threshold.
      */
-    private swipeUp(startRatio = 0.97, endRatio = 0.35): Promise<void> {
+    private swipeUp(startRatio = 0.99, endRatio = 0.3, durationMs = HUMAN_SWIPE_MS): Promise<void> {
         const x = this.screenWidth * 0.5;
-        return this.drag(x, this.screenHeight * startRatio, x, this.screenHeight * endRatio);
+        return this.dragHuman(x, this.screenHeight * startRatio, x, this.screenHeight * endRatio, durationMs);
     }
 
     /**
@@ -551,9 +586,9 @@ export class UnlockDialog extends Modal {
      * not reachable.
      */
     private async swipeUpViaAdb(
-        startRatio = 0.97,
-        endRatio = 0.35,
-        duration = 300,
+        startRatio = 0.99,
+        endRatio = 0.3,
+        duration = HUMAN_SWIPE_MS,
     ): Promise<boolean> {
         const x = Math.round(this.screenWidth * 0.5);
         const y1 = Math.round(this.screenHeight * startRatio);
@@ -583,8 +618,11 @@ export class UnlockDialog extends Modal {
         await this.wakeAndSwipeUp();
         let target = await this.detectUnlockTarget(6000);
         const variants: Array<{ from: number; to: number; duration: number }> = [
-            { from: 0.985, to: 0.25, duration: 350 },
-            { from: 0.93, to: 0.32, duration: 250 },
+            // Both start inside the gesture strip; the second only differs in
+            // length and is given a slightly quicker profile, in case the first
+            // was read as too slow by a build with a fixed velocity threshold.
+            { from: 0.995, to: 0.28, duration: HUMAN_SWIPE_MS },
+            { from: 0.97, to: 0.32, duration: 380 },
         ];
         for (const [index, variant] of variants.entries()) {
             if (target.kind !== 'none') break;

@@ -8,7 +8,7 @@ import type VideoSettings from '../../../VideoSettings';
 import { isDroppedConnection } from '../ConnectModal';
 
 type FakeInstance = {
-    onErrorReceived?: (err: Error) => void;
+    onErrorReceived?: ((err: Error) => void) | undefined;
     stopStream: () => void;
 };
 
