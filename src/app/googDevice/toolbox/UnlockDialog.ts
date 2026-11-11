@@ -48,6 +48,12 @@ const POINTER_ID = 1;
 const MOVE_STEPS = 10;
 const STEP_DELAY_MS = 15;
 
+/** The unlock swipe: 24 interpolated moves over 260 ms, accelerating to release. */
+const SWIPE_STEPS = 24;
+const SWIPE_DURATION_MS = 260;
+/** How long the flow waits for the device to react before the next step. */
+const SETTLE_MS = 500;
+
 function delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
 }
@@ -448,12 +454,27 @@ export class UnlockDialog extends Modal {
         );
     }
 
-    /** A continuous drag from (x1,y1) to (x2,y2) with interpolated moves. */
+    /**
+     * A flick-shaped drag: the finger starts slowly and accelerates towards the
+     * end, the way a real swipe-up leaves the glass.
+     *
+     * Position follows t² over a fixed time step, so the velocity grows all the
+     * way to the release instead of staying constant. A constant-speed line
+     * moved the same distance but read as a slow drag to the keyguard's gesture
+     * detector; accelerating it is what makes it look like a deliberate flick.
+     */
     private drag(x1: number, y1: number, x2: number, y2: number): Promise<void> {
         this.touch(MotionEvent.ACTION_DOWN, x1, y1);
-        return this.dragMove(x1, y1, x2, y2).then(() => {
+        return (async (): Promise<void> => {
+            for (let step = 1; step <= SWIPE_STEPS; step++) {
+                const t = step / SWIPE_STEPS;
+                // Squared easing: slow at the start, fastest at the release.
+                const eased = t * t;
+                this.touch(MotionEvent.ACTION_MOVE, x1 + (x2 - x1) * eased, y1 + (y2 - y1) * eased);
+                await delay(SWIPE_DURATION_MS / SWIPE_STEPS);
+            }
             this.touch(MotionEvent.ACTION_UP, x2, y2);
-        });
+        })();
     }
 
     private async dragMove(x1: number, y1: number, x2: number, y2: number): Promise<void> {
@@ -479,14 +500,14 @@ export class UnlockDialog extends Modal {
         this.touch(MotionEvent.ACTION_DOWN, x, y);
         await delay(60);
         this.touch(MotionEvent.ACTION_UP, x, y);
-        await delay(350);
+        await delay(SETTLE_MS);
     }
 
     /** Check screen state; if off, wake it and swipe diagonally up. */
     private async wakeAndSwipeUp(): Promise<void> {
         this.showStatus(t('unlock_waking'));
         await this.ensureAwake();
-        await delay(700);
+        await delay(SETTLE_MS);
         // Tap just before the swipe: a device that fell asleep during the
         // connection handshake only comes back on a touch, not on a key.
         await this.tapScreen();
@@ -496,7 +517,7 @@ export class UnlockDialog extends Modal {
             this.screenWidth * 0.15,
             this.screenHeight * 0.15,
         );
-        await delay(700);
+        await delay(SETTLE_MS);
     }
 
     /**
