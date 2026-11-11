@@ -850,6 +850,10 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '屏幕未唤醒，无法继续',
         en: 'Screen did not wake up, cannot continue',
     },
+    'unlock_doze_hint': {
+        zh: '设备停在息屏显示（画面全黑），请按一次电源键点亮后再试',
+        en: 'device is in always-on display (black picture) — press power once, then retry',
+    },
     'unlock_swipe_failed': {
         zh: '自动上滑未生效，请手动上滑一次后重试',
         en: 'Auto swipe did not take effect; swipe up by hand once and retry',

@@ -59,12 +59,13 @@ const HUMAN_SWIPE_MS = 420;
 const HUMAN_SWIPE_STEPS = 28;
 
 /**
- * Window/class fragments that mean the panel is in always-on display rather
- * than on the lock screen. Deliberately narrow: `miui.systemui.plugin` shows up
- * on an ordinary locked MIUI/HyperOS phone too, and pressing power there turns
- * the screen *off* instead of lighting it.
+ * Window name that means the panel is in MIUI/HyperOS always-on display.
+ * Deliberately the only one accepted: `miui.systemui.plugin` and the doze
+ * service names also appear on an ordinary locked phone, and treating one of
+ * those as doze is what used to make the flow press power — turning a lit
+ * panel off — and then swipe at a dark screen.
  */
-const AOD_WINDOW_HINTS = ['com.miui.aod', 'DozeService', 'com.android.systemui.doze'];
+const AOD_WINDOW_NAME = 'com.miui.aod';
 
 function delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
@@ -444,8 +445,15 @@ export class UnlockDialog extends Modal {
      * screen if it is off, and the response tells us whether it is awake now.
      */
     private async ensureAwake(): Promise<boolean> {
+        // Ask before pressing anything. A lit panel needs no key at all, and
+        // the previous flow pressed a key on a guess — on a lit panel a power
+        // press turns the screen OFF, which is the "it goes dark right before
+        // the swipe" report. `awake` is the device's own `mWakefulness`.
+        if ((await this.screenAwake()) === true) return true;
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
+                // 'wake' maps to KEYCODE_WAKEUP (224) on the server: it can only
+                // wake, never toggle the panel off.
                 const res = await fetch('/api/devices/sleep-wake', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -459,6 +467,18 @@ export class UnlockDialog extends Modal {
             await delay(600);
         }
         return false;
+    }
+
+    /** The device's own `awake` reading, or null when it cannot be obtained. */
+    private async screenAwake(): Promise<boolean | null> {
+        try {
+            const res = await fetch(`/api/devices/screen-state?udid=${encodeURIComponent(this.udid)}`);
+            if (!res.ok) return null;
+            const body = (await res.json()) as { awake?: boolean };
+            return typeof body.awake === 'boolean' ? body.awake : null;
+        } catch {
+            return null;
+        }
     }
 
     private sendKey(keycode: number): void {
@@ -523,44 +543,28 @@ export class UnlockDialog extends Modal {
         const awake = await this.ensureAwake();
         if (!awake) throw new Error(t('unlock_wake_failed'));
         await delay(700);
-        await this.wakeFromAod();
-        await delay(700);
+        // KEYCODE_WAKEUP cannot leave always-on display, and pressing power to
+        // force a way out is not allowed here: on a lit panel it would turn the
+        // screen off. Report the doze state instead, so one power press by the
+        // user gets the flow past it.
+        if (await this.dozeShowing()) throw new Error(t('unlock_doze_hint'));
         await this.swipeUpViaAdb();
         await delay(700);
     }
 
     /**
-     * MIUI/HyperOS keep the panel in always-on display, where the lock screen
-     * gesture is ignored: nothing moves and the stream stays black. Its
-     * `mWakefulness` may still read "Awake", so the wake call above believes the
-     * screen is lit when it is not, and KEYCODE_WAKEUP does not leave AOD —
-     * only a real power press does (that is why the toolbox power button makes
-     * the next swipe work). Detect the AOD window in the dump and press power
-     * until it is gone.
+     * MIUI/HyperOS always-on display is on screen. Narrow on purpose: the doze
+     * service and `miui.systemui.plugin` also appear in an ordinary locked
+     * phone's hierarchy, and reading one of those as AOD is what made the old
+     * flow press power — turning a lit panel off — and then swipe at a dark
+     * screen while reporting "password field detection".
      */
-    private async wakeFromAod(force = false): Promise<void> {
-        // A parseable dump WITHOUT the doze window is the only trustworthy
-        // "the panel is really lit" signal. An empty dump is not one: while the
-        // panel sits in always-on display, uiautomator's accessibility
-        // connection frequently fails and answers nothing, and the old
-        // `!xml → return` read that as "awake, go ahead" — every injected swipe
-        // was then dropped and the run died on password-field detection with
-        // the status stuck mid-way. Two empty dumps in a row, or a caller that
-        // already knows the swipe did nothing (`force`), press power.
-        let emptyDumps = 0;
-        for (let attempt = 0; attempt < 3; attempt++) {
-            const { xml } = await fetchUiHierarchy(this.udid);
-            if (xml) {
-                if (!AOD_WINDOW_HINTS.some((hint) => xml.includes(hint))) return;
-            } else if (!force) {
-                emptyDumps += 1;
-                if (emptyDumps < 2) continue;
-            }
-            this.sendKey(KeyEvent.KEYCODE_POWER);
-            force = false;
-            await delay(1200);
-        }
+    private async dozeShowing(): Promise<boolean> {
+        const { xml } = await fetchUiHierarchy(this.udid);
+        return !!xml && xml.includes(AOD_WINDOW_NAME);
     }
+
+    /**
 
     /**
      * The keyguard's own reveal gesture: straight up from the bottom edge.
@@ -643,20 +647,19 @@ export class UnlockDialog extends Modal {
             target = await this.detectUnlockTarget(10000);
         }
         if (target.kind === 'none') {
-            // Last resort before reporting failure: the panel may still be in
-            // always-on display even though the dumps looked normal — MIUI/HyperOS
-            // report mWakefulness=Awake in doze, which is why the wake call above
-            // believed the screen was lit and every swipe was dropped. One real
-            // power press leaves doze, so retry once with it instead of ending on
-            // a detection timeout.
+            // One last plain wake + swipe: no power press is ever sent from here
+            // (it toggles a lit panel off, which is the "screen goes dark before
+            // the swipe" report). Doze is reported instead, since it is the one
+            // state a wake key cannot leave.
             this.showStatus(t('unlock_waking'));
-            await this.wakeFromAod(true);
+            await this.ensureAwake();
             await delay(700);
             await this.swipeUpViaAdb();
             await delay(900);
             target = await this.detectUnlockTarget(15000);
         }
         if (target.kind === 'none') {
+            if (await this.dozeShowing()) throw new Error(t('unlock_doze_hint'));
             throw new Error(`${t('unlock_swipe_failed')} [${await this.describeScreen()}]`);
         }
         return target;
