@@ -543,12 +543,42 @@ dialog.connect-modal .modal-frame {
  * .device-view row to that height, and lets the frame shrink around it — no bars,
  * nothing cropped. max-height below keeps the frame inside the viewport. */
 
-/* Phones: drop the title bar entirely so the stream takes the whole frame. No
- * substitute close control is needed — the toolbox has one, and ConnectModal
- * already blocks backdrop and Escape dismissal to protect the stream. */
+/* Phones: drop the title bar entirely so the stream takes the whole frame. The
+ * dedicated close button below replaces the header's × there — the toolbox is
+ * not a reliable exit, since a reconnect stop() removes it. */
 @media (max-width: 640px), (max-height: 560px) {
     dialog.connect-modal .modal-header {
         display: none;
+    }
+}
+
+/* Lives on the dialog, not in the stream body, so a reconnect (which tears the
+ * toolbar down) cannot take the only exit with it. Top-left keeps it clear of the
+ * icon column on the right. */
+dialog.connect-modal .connect-modal-close {
+    position: absolute;
+    top: max(8px, env(safe-area-inset-top, 0px));
+    left: max(8px, env(safe-area-inset-left, 0px));
+    z-index: 5;
+    width: 36px;
+    height: 36px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.62);
+    color: #fff;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+/* Only where the header is hidden; otherwise the header's own × is the exit. */
+@media (max-width: 640px), (max-height: 560px) {
+    dialog.connect-modal .connect-modal-close {
+        display: flex;
     }
 }
 

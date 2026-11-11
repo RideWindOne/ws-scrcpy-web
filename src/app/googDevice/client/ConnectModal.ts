@@ -43,11 +43,33 @@ export class ConnectModal extends Modal {
     ) {
         super({ title: deviceLabel });
         this.dialog.classList.add('connect-modal');
+        this.addCloseButton();
         this.params = params;
         this.fitToScreen = fitToScreen;
         this.videoSettings = videoSettings;
         this.deviceKind = deviceKind;
         this.openStream();
+    }
+
+    /**
+     * A close button pinned to the dialog itself.
+     *
+     * On phones the title bar is hidden to give the picture the whole frame, so
+     * the toolbox was the only way out — and a reconnect calls `stop()`, which
+     * takes the toolbox away. When the reconnect then failed the window was a
+     * black rectangle with no toolbar, escape and backdrop both blocked: nothing
+     * to press. This button lives outside the stream body, so it survives every
+     * stop/open cycle and every failure.
+     */
+    private addCloseButton(): void {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'connect-modal-close';
+        button.textContent = '×';
+        button.title = t('stream_close');
+        button.setAttribute('aria-label', t('stream_close'));
+        button.addEventListener('click', () => this.close());
+        this.dialog.appendChild(button);
     }
 
     private openStream(): void {

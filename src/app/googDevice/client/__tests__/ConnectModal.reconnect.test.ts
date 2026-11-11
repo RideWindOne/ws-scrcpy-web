@@ -120,4 +120,24 @@ describe('ConnectModal when the pipe drops (close code 1006)', () => {
         vi.advanceTimersByTime(4000);
         expect(closeSpy).toHaveBeenCalledTimes(1);
     });
+
+    it('always has a close button that survives the reconnect teardown', async () => {
+        // On phones the title bar is hidden, so the toolbox was the only exit —
+        // and a reconnect stops the stream, taking the toolbox with it. The
+        // button must live on the dialog, not inside the stream body.
+        await open();
+        const button = modal()?.querySelector<HTMLButtonElement>('.connect-modal-close');
+        expect(button).not.toBeNull();
+        expect(button?.textContent).toBe('×');
+
+        started[0]!.onErrorReceived!(drop());
+        vi.advanceTimersByTime(3000);
+        // Still there after the stop/open cycle, and after a second failure.
+        expect(modal()?.querySelector('.connect-modal-close')).not.toBeNull();
+        started[1]!.onErrorReceived!(drop());
+        expect(modal()?.querySelector('.connect-modal-close')).not.toBeNull();
+
+        button?.click();
+        expect(closeSpy).toHaveBeenCalled();
+    });
 });
