@@ -465,11 +465,31 @@ export class UnlockDialog extends Modal {
         }
     }
 
+    /**
+     * One light tap on the middle of the picture, right before the unlock swipe.
+     *
+     * Measured on the T2S setup: a fresh connection needs about two seconds
+     * before the first frame shows up, and the phone falls asleep in that gap.
+     * Tapping is what brings it back — a tap is a touch event, so it cannot
+     * switch anything off, and on builds with tap-to-wake it lights the panel.
+     */
+    private async tapScreen(): Promise<void> {
+        const x = Math.round(this.screenWidth * 0.5);
+        const y = Math.round(this.screenHeight * 0.5);
+        this.touch(MotionEvent.ACTION_DOWN, x, y);
+        await delay(60);
+        this.touch(MotionEvent.ACTION_UP, x, y);
+        await delay(350);
+    }
+
     /** Check screen state; if off, wake it and swipe diagonally up. */
     private async wakeAndSwipeUp(): Promise<void> {
         this.showStatus(t('unlock_waking'));
         await this.ensureAwake();
         await delay(700);
+        // Tap just before the swipe: a device that fell asleep during the
+        // connection handshake only comes back on a touch, not on a key.
+        await this.tapScreen();
         await this.drag(
             this.screenWidth * 0.85,
             this.screenHeight * 0.85,
