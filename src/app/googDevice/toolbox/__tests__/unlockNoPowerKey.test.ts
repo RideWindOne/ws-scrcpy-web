@@ -27,6 +27,15 @@ describe('the unlock dialog only reads the awake state', () => {
         expect(source).toMatch(/if \(awake === false\) throw new Error\(t\('unlock_screen_asleep'\)\);|if \(awake === false\)/);
     });
 
+    it('taps the screen before checking, because a freshly connected device falls asleep', () => {
+        // The first frame needs ~2 s; the phone sleeps in that gap and comes
+        // back on a touch, not on a key.
+        const wakeStarts = source.indexOf('private async wakeAndSwipeUp');
+        const body = source.slice(wakeStarts, wakeStarts + 900);
+        expect(body.indexOf('await this.tapScreen();')).toBeGreaterThan(-1);
+        expect(body.indexOf('await this.tapScreen();')).toBeLessThan(body.indexOf('await this.checkAwake();'));
+    });
+
     it('recognises only the MIUI doze window, never the names a normal lock screen also has', () => {
         const hints = /const AOD_WINDOW_NAME = (.+);/.exec(source)?.[1] ?? '';
         expect(hints).toBe("'com.miui.aod'");

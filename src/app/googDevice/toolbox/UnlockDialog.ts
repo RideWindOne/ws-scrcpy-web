@@ -529,9 +529,31 @@ export class UnlockDialog extends Modal {
         })();
     }
 
+    /**
+     * One light tap on the middle of the picture, before anything else.
+     *
+     * Measured on the T2S setup: a fresh connection needs about two seconds
+     * before the first frame shows up, and that idle gap is long enough for the
+     * phone to fall asleep on its own. Tapping first is what gets past it —
+     * tapping is a touch event, so it cannot switch anything off, and on builds
+     * with tap-to-wake it also lights the panel. Reported by the user as "tap
+     * the screen once before unlocking and it works".
+     */
+    private async tapScreen(): Promise<void> {
+        const x = Math.round(this.screenWidth * 0.5);
+        const y = Math.round(this.screenHeight * 0.5);
+        this.touch(MotionEvent.ACTION_DOWN, x, y);
+        await delay(60);
+        this.touch(MotionEvent.ACTION_UP, x, y);
+        await delay(350);
+    }
+
     /** Check that the device is awake, then swipe up from the bottom edge. */
     private async wakeAndSwipeUp(): Promise<void> {
         this.showStatus(t('unlock_checking'));
+        // Tap first: a device that fell asleep during the two-second gap before
+        // the first frame only comes back on a touch.
+        await this.tapScreen();
         await this.checkAwake();
         await delay(400);
         // Doze is the one state a swipe cannot get past. Report it instead of
@@ -638,6 +660,7 @@ export class UnlockDialog extends Modal {
             // pressed here: power toggles a lit panel off, and wake cannot leave
             // doze, so the only useful report is the doze state below.
             this.showStatus(t('unlock_checking'));
+            await this.tapScreen();
             await this.checkAwake();
             await delay(400);
             await this.swipeUpViaAdb();
