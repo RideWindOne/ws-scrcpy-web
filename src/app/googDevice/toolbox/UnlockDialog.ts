@@ -488,16 +488,31 @@ export class UnlockDialog extends Modal {
     }
 
     /**
-     * Wake, then swipe diagonally up — no tap in between.
+     * One light tap on the middle of the picture, right before the unlock swipe.
      *
-     * The tap was added when the flow waited seconds for the wake request to
-     * come back; with the wake fired and not awaited the swipe is reached
-     * immediately and reports are that it unlocks on its own, so the extra
-     * touch is gone.
+     * Measured on the T2S setup: a fresh connection needs about two seconds
+     * before the first frame shows up, and the phone falls asleep in that gap.
+     * Tapping is what brings it back — a tap is a touch event, so it cannot
+     * switch anything off, and on builds with tap-to-wake it lights the panel.
+     */
+    private async tapScreen(): Promise<void> {
+        const x = Math.round(this.screenWidth * 0.5);
+        const y = Math.round(this.screenHeight * 0.5);
+        this.touch(MotionEvent.ACTION_DOWN, x, y);
+        await delay(60);
+        this.touch(MotionEvent.ACTION_UP, x, y);
+        await delay(SETTLE_MS);
+    }
+
+    /**
+     * Wake, tap, then swipe diagonally up — in that order, with no waiting in
+     * between. The wake request is not awaited: the touch right after it brings
+     * a sleeping panel back anyway, so the round trip's answer is irrelevant.
      */
     private async wakeAndSwipeUp(): Promise<void> {
         this.showStatus(t('unlock_waking'));
         this.wakeScreen();
+        await this.tapScreen();
         await this.drag(
             this.screenWidth * 0.85,
             this.screenHeight * 0.85,
@@ -547,11 +562,12 @@ export class UnlockDialog extends Modal {
                 }
                 setPatternAreaCache(this.udid, area);
             },
-            // Probing can take tens of seconds. Keeping the panel awake is a
-            // fire-and-forget wake request now: it costs no waiting and touches
-            // nothing on screen, so a long dump scan cannot disturb it.
+            // Probing can take tens of seconds. Nudging the screen awake used to
+            // mean a keyevent round trip every few rounds — slow, and exactly the
+            // gap in which the device falls asleep. A tap is the cheap equivalent
+            // (and the one the user confirmed works), so nothing is pressed here.
             onKeepAwake: () => {
-                this.wakeScreen();
+                void this.tapScreen();
             },
             onError: (error) => this.showStatus(`${t('unlock_detect_error')}: ${error}`),
         });
