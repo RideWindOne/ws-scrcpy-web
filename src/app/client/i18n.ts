@@ -843,8 +843,8 @@ const translations: Record<string, Record<Language, string>> = {
         en: 'Saved',
     },
     'unlock_waking': {
-        zh: '正在唤醒屏幕…',
-        en: 'Waking screen…',
+        zh: '正在解锁…',
+        en: 'Unlocking…',
     },
     'unlock_checking': {
         zh: '正在检测屏幕状态…',

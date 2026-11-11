@@ -414,27 +414,11 @@ export class UnlockDialog extends Modal {
     // Screen state + unlock execution (Screen-Remote flow)
     // ------------------------------------------------------------------
 
-    /**
-     * Ask the server for the screen state; the wake action itself re-wakes the
-     * screen if it is off, and the response tells us whether it is awake now.
-     */
-    private async ensureAwake(): Promise<boolean> {
-        for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-                const res = await fetch('/api/devices/sleep-wake', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ udid: this.udid, action: 'wake' }),
-                });
-                const result = (await res.json()) as { awake?: boolean };
-                if (result.awake) return true;
-            } catch {
-                // transient; retry
-            }
-            await delay(600);
-        }
-        return false;
-    }
+    // Unlock no longer asks the device about its screen state at all. That cost
+    // a `dumpsys` round trip, and the old wake call cost far more — a keyevent,
+    // a 500 ms re-read and up to three rounds — during which the device would
+    // fall asleep again. A tap both wakes the panel and leaves nothing to wait
+    // for, so the flow goes straight from tap to swipe.
 
     private sendKey(keycode: number): void {
         this.client.sendMessage(new KeyCodeControlMessage(KeyEvent.ACTION_DOWN, keycode, 0, 0));
@@ -503,13 +487,15 @@ export class UnlockDialog extends Modal {
         await delay(SETTLE_MS);
     }
 
-    /** Check screen state; if off, wake it and swipe diagonally up. */
+    /**
+     * Tap, then swipe diagonally up.
+     *
+     * No wake request and no waiting for one: the touch itself brings a sleeping
+     * panel back, and every second spent on a `keyevent` round trip was a second
+     * the device could spend falling asleep.
+     */
     private async wakeAndSwipeUp(): Promise<void> {
         this.showStatus(t('unlock_waking'));
-        await this.ensureAwake();
-        await delay(SETTLE_MS);
-        // Tap just before the swipe: a device that fell asleep during the
-        // connection handshake only comes back on a touch, not on a key.
         await this.tapScreen();
         await this.drag(
             this.screenWidth * 0.85,
@@ -560,9 +546,12 @@ export class UnlockDialog extends Modal {
                 }
                 setPatternAreaCache(this.udid, area);
             },
-            // Probing can take tens of seconds; keep the screen awake.
+            // Probing can take tens of seconds. Nudging the screen awake used to
+            // mean a keyevent round trip every few rounds — slow, and exactly the
+            // gap in which the device falls asleep. A tap is the cheap equivalent
+            // (and the one the user confirmed works), so nothing is pressed here.
             onKeepAwake: () => {
-                void this.ensureAwake();
+                void this.tapScreen();
             },
             onError: (error) => this.showStatus(`${t('unlock_detect_error')}: ${error}`),
         });
@@ -720,9 +709,8 @@ export class UnlockDialog extends Modal {
             await this.wakeAndSwipeUp();
 
             if (mode === 'pin') {
-                // Wake the lock UI, find the PIN field, tap it (so the text
-                // lands in the right place), then type.
-                await this.ensureAwake();
+                // The swipe above already woke the lock UI; find the PIN field,
+                // tap it (so the text lands in the right place), then type.
                 await delay(900);
                 const pinField = await this.detectPinField();
                 await this.unlockWithPin(pin!, pinField);
@@ -738,7 +726,6 @@ export class UnlockDialog extends Modal {
                 // for the numeric PIN), tell the user to switch to PIN mode —
                 // a saved PIN is never auto-injected from here.
                 const target = await this.detectUnlockTarget();
-                await this.ensureAwake();
                 await delay(400);
                 if (target.kind === 'pin') {
                     this.showStatus(t('unlock_pin_required'));
