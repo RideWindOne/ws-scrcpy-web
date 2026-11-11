@@ -171,7 +171,7 @@ export class UnlockDialog extends Modal {
 
     /** Close the dialog and hand over to the centered in-video status notice. */
     private minimize(): void {
-        this.ensureMiniStatus().textContent = t('unlock_waking');
+        this.ensureMiniStatus().textContent = t('unlock_checking');
         this.close();
     }
 
@@ -441,32 +441,24 @@ export class UnlockDialog extends Modal {
     // ------------------------------------------------------------------
 
     /**
-     * Ask the server for the screen state; the wake action itself re-wakes the
-     * screen if it is off, and the response tells us whether it is awake now.
+     * Look, do not press.
+     *
+     * The state that decides whether a swipe can land is the device's own
+     * `mWakefulness`, not the picture: while it reads Awake the touch channel is
+     * live and the keyguard accepts the gesture, even though the stream may look
+     * black (Android hands scrcpy a black surface while the keyguard is up).
+     *
+     * No key is sent from here. Waking is not needed when the device is already
+     * awake, power would turn a lit panel *off*, and neither key leaves always-on
+     * display — so the only key routes this dialog ever had were the ones that
+     * caused trouble. When the device is genuinely asleep or in doze, say so and
+     * let the user light it.
      */
-    private async ensureAwake(): Promise<boolean> {
-        // Ask before pressing anything. A lit panel needs no key at all, and
-        // the previous flow pressed a key on a guess — on a lit panel a power
-        // press turns the screen OFF, which is the "it goes dark right before
-        // the swipe" report. `awake` is the device's own `mWakefulness`.
-        if ((await this.screenAwake()) === true) return true;
-        for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-                // 'wake' maps to KEYCODE_WAKEUP (224) on the server: it can only
-                // wake, never toggle the panel off.
-                const res = await fetch('/api/devices/sleep-wake', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ udid: this.udid, action: 'wake' }),
-                });
-                const result = (await res.json()) as { awake?: boolean };
-                if (result.awake) return true;
-            } catch {
-                // transient; retry
-            }
-            await delay(600);
-        }
-        return false;
+    private async checkAwake(): Promise<void> {
+        const awake = await this.screenAwake();
+        if (awake === false) throw new Error(t('unlock_screen_asleep'));
+        // Unknown (shell route down) is not a reason to stop: nothing is pressed
+        // either way, so a swipe that lands nowhere costs one attempt.
     }
 
     /** The device's own `awake` reading, or null when it cannot be obtained. */
@@ -537,16 +529,13 @@ export class UnlockDialog extends Modal {
         })();
     }
 
-    /** Check screen state, wake it if needed, then swipe up from the bottom. */
+    /** Check that the device is awake, then swipe up from the bottom edge. */
     private async wakeAndSwipeUp(): Promise<void> {
-        this.showStatus(t('unlock_waking'));
-        const awake = await this.ensureAwake();
-        if (!awake) throw new Error(t('unlock_wake_failed'));
-        await delay(700);
-        // KEYCODE_WAKEUP cannot leave always-on display, and pressing power to
-        // force a way out is not allowed here: on a lit panel it would turn the
-        // screen off. Report the doze state instead, so one power press by the
-        // user gets the flow past it.
+        this.showStatus(t('unlock_checking'));
+        await this.checkAwake();
+        await delay(400);
+        // Doze is the one state a swipe cannot get past. Report it instead of
+        // forcing a way out with a power press.
         if (await this.dozeShowing()) throw new Error(t('unlock_doze_hint'));
         await this.swipeUpViaAdb();
         await delay(700);
@@ -563,8 +552,6 @@ export class UnlockDialog extends Modal {
         const { xml } = await fetchUiHierarchy(this.udid);
         return !!xml && xml.includes(AOD_WINDOW_NAME);
     }
-
-    /**
 
     /**
      * The keyguard's own reveal gesture: straight up from the bottom edge.
@@ -647,13 +634,12 @@ export class UnlockDialog extends Modal {
             target = await this.detectUnlockTarget(10000);
         }
         if (target.kind === 'none') {
-            // One last plain wake + swipe: no power press is ever sent from here
-            // (it toggles a lit panel off, which is the "screen goes dark before
-            // the swipe" report). Doze is reported instead, since it is the one
-            // state a wake key cannot leave.
-            this.showStatus(t('unlock_waking'));
-            await this.ensureAwake();
-            await delay(700);
+            // One last plain swipe, after re-reading the awake state. No key is
+            // pressed here: power toggles a lit panel off, and wake cannot leave
+            // doze, so the only useful report is the doze state below.
+            this.showStatus(t('unlock_checking'));
+            await this.checkAwake();
+            await delay(400);
             await this.swipeUpViaAdb();
             await delay(900);
             target = await this.detectUnlockTarget(15000);
@@ -713,9 +699,12 @@ export class UnlockDialog extends Modal {
                 }
                 setPatternAreaCache(this.udid, area);
             },
-            // Probing can take tens of seconds; keep the screen awake.
+            // Probing can take tens of seconds. Keeping the screen awake used to
+            // mean pressing a wake key; this dialog no longer sends keys at all,
+            // so it re-reads the awake state instead and lets checkAwake report a
+            // device that fell asleep by itself.
             onKeepAwake: () => {
-                void this.ensureAwake();
+                void this.checkAwake().catch(() => undefined);
             },
             onError: (error) => this.showStatus(`${t('unlock_detect_error')}: ${error}`),
         });

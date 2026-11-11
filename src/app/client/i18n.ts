@@ -846,6 +846,14 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '正在唤醒屏幕…',
         en: 'Waking screen…',
     },
+    'unlock_checking': {
+        zh: '正在检测屏幕状态…',
+        en: 'Checking screen state…',
+    },
+    'unlock_screen_asleep': {
+        zh: '设备处于休眠状态，请先点亮屏幕后再试',
+        en: 'the device is asleep — light the screen first, then retry',
+    },
     'unlock_wake_failed': {
         zh: '屏幕未唤醒，无法继续',
         en: 'Screen did not wake up, cannot continue',

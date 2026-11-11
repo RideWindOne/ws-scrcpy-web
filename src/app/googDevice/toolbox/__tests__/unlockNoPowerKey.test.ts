@@ -6,21 +6,25 @@ import { describe, expect, it } from 'vitest';
 
 const source = fs.readFileSync(path.resolve('src', 'app', 'googDevice', 'toolbox', 'UnlockDialog.ts'), 'utf8');
 
-// Auto-unlock used to press KEYCODE_POWER to leave always-on display. On a
-// panel that was already lit that key turns the screen OFF, which showed up as
-// "waking the screen darkens it first" and then a swipe at a black frame. The
-// flow now only ever wakes (KEYCODE_WAKEUP, via action 'wake'), and reports
-// doze instead of forcing its way out of it.
-describe('the unlock dialog never toggles the panel off', () => {
-    it('does not send the power key', () => {
+// Auto-unlock has to look, not press. KEYCODE_POWER on a lit panel turns it
+// OFF (reported as "waking the screen darkens it first"), and KEYCODE_WAKEUP
+// cannot leave always-on display, so both key routes only ever made things
+// worse. Whether a swipe can land is decided by `mWakefulness` — the device can
+// be awake and touchable while the stream still looks black.
+describe('the unlock dialog only reads the awake state', () => {
+    it('sends no power key', () => {
         expect(source).not.toMatch(/KEYCODE_POWER/);
     });
 
-    it('wakes through the wake-only route, after asking the device first', () => {
-        expect(source).toMatch(/action: 'wake'/);
-        // The state is read before any key is pressed.
+    it('sends no wake key either', () => {
+        expect(source).not.toMatch(/sleep-wake/);
+        expect(source).not.toMatch(/action: 'wake'/);
+    });
+
+    it('decides on mWakefulness via the read-only state route', () => {
         expect(source).toMatch(/screen-state\?udid=/);
-        expect(source).toMatch(/if \(\(await this\.screenAwake\(\)\) === true\) return true;/);
+        // `awake` false is the only reason to stop.
+        expect(source).toMatch(/if \(awake === false\) throw new Error\(t\('unlock_screen_asleep'\)\);|if \(awake === false\)/);
     });
 
     it('recognises only the MIUI doze window, never the names a normal lock screen also has', () => {
