@@ -209,7 +209,11 @@ describe('where the prompt sits over the video', () => {
         expect(order.indexOf('stream-clipboard-prompt')).toBeGreaterThanOrEqual(0);
         expect(order.indexOf('stream-clipboard-prompt')).toBeLessThan(order.indexOf('stream-locked-notice'));
         // ...and the rule that does the moving: the notice drops to the bottom
-        // edge while the prompt holds the top one.
-        expect(cssRule('.stream-clipboard-prompt:not([hidden]) ~ .stream-locked-notice')).toMatch(/align-self:\s*end;/);
+        // edge while the prompt holds the top one. The unlock dialog's own chip
+        // (`unlock-mini-status`) is excluded — it already sits below the clock
+        // and would otherwise be pushed down onto the wake-up text.
+        expect(
+            cssRule('.stream-clipboard-prompt:not([hidden]) ~ .stream-locked-notice:not(.unlock-mini-status)'),
+        ).toMatch(/align-self:\s*end;/);
     });
 });

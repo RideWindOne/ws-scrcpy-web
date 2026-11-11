@@ -48,8 +48,28 @@ const POINTER_ID = 1;
 const MOVE_STEPS = 10;
 const STEP_DELAY_MS = 15;
 
+/**
+ * Window/class fragments that mean the panel is in always-on display rather
+ * than on the lock screen. Deliberately narrow: `miui.systemui.plugin` shows up
+ * on an ordinary locked MIUI/HyperOS phone too, and pressing power there turns
+ * the screen *off* instead of lighting it.
+ */
+const AOD_WINDOW_HINTS = ['com.miui.aod', 'DozeService', 'com.android.systemui.doze'];
+
 function delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Which windows the last dump actually contained — used only to explain a
+ * failed reveal: SystemUI alone means the keyguard never moved, while bouncer
+ * classes mean the swipe worked and the detection is what missed.
+ */
+function dumpFingerprint(xml: string | null): string {
+    if (!xml) return 'no-dump';
+    const packages = [...xml.matchAll(/package="([^"]+)"/g)].map((m) => m[1]);
+    const unique = [...new Set(packages)].filter((pkg): pkg is string => !!pkg);
+    return unique.slice(0, 3).join('|') || 'empty';
 }
 
 /**
@@ -59,11 +79,11 @@ function delay(ms: number): Promise<void> {
  * used once, then discarded.
  *
  * Unlock flow mirrors Screen-Remote:
- *   check screen state (re-wake if off) → diagonal swipe up → poll the
- *   uiautomator dump for the pattern grid (or PIN field) → inject a touch/text
- *   sequence over the scrcpy control channel. While the grid is being probed
- *   the screen is nudged awake every few seconds, so a long detection never
- *   falls back to a dark screen.
+ *   check screen state (re-wake if off) → swipe up from the bottom edge →
+ *   poll the uiautomator dump for the pattern grid (or PIN field) → inject a
+ *   touch/text sequence over the scrcpy control channel. While the grid is
+ *   being probed the screen is nudged awake every few seconds, so a long
+ *   detection never falls back to a dark screen.
  *
  * The detected grid is cached ("use position cache", on by default) so later
  * unlocks reuse it without waiting. Once "unlock" is tapped the dialog
@@ -118,8 +138,9 @@ export class UnlockDialog extends Modal {
     private ensureMiniStatus(): HTMLElement {
         if (this.miniStatus && this.miniStatus.isConnected) return this.miniStatus;
         const el = document.createElement('div');
-        // Same look and position as the "device is locked" notice: centered
-        // inside the video surface, so it is never hidden behind page UI.
+        // Same look as the "device is locked" notice, but placed just below
+        // centre so the two are never drawn on top of each other while the
+        // wake-up runs (see .stream-locked-notice.unlock-mini-status).
         el.className = 'stream-locked-notice unlock-mini-status';
         el.style.cssText = 'pointer-events:auto;cursor:pointer;z-index:9;';
         el.title = t('unlock_title');
@@ -465,18 +486,149 @@ export class UnlockDialog extends Modal {
         }
     }
 
-    /** Check screen state; if off, wake it and swipe diagonally up. */
+    /** Check screen state, wake it if needed, then swipe up from the bottom. */
     private async wakeAndSwipeUp(): Promise<void> {
         this.showStatus(t('unlock_waking'));
-        await this.ensureAwake();
+        const awake = await this.ensureAwake();
+        if (!awake) throw new Error(t('unlock_wake_failed'));
         await delay(700);
-        await this.drag(
-            this.screenWidth * 0.85,
-            this.screenHeight * 0.85,
-            this.screenWidth * 0.15,
-            this.screenHeight * 0.15,
-        );
+        await this.wakeFromAod();
         await delay(700);
+        await this.swipeUpViaAdb();
+        await delay(700);
+    }
+
+    /**
+     * MIUI/HyperOS keep the panel in always-on display, where the lock screen
+     * gesture is ignored: nothing moves and the stream stays black. Its
+     * `mWakefulness` may still read "Awake", so the wake call above believes the
+     * screen is lit when it is not, and KEYCODE_WAKEUP does not leave AOD —
+     * only a real power press does (that is why the toolbox power button makes
+     * the next swipe work). Detect the AOD window in the dump and press power
+     * until it is gone.
+     */
+    private async wakeFromAod(force = false): Promise<void> {
+        // A parseable dump WITHOUT the doze window is the only trustworthy
+        // "the panel is really lit" signal. An empty dump is not one: while the
+        // panel sits in always-on display, uiautomator's accessibility
+        // connection frequently fails and answers nothing, and the old
+        // `!xml → return` read that as "awake, go ahead" — every injected swipe
+        // was then dropped and the run died on password-field detection with
+        // the status stuck mid-way. Two empty dumps in a row, or a caller that
+        // already knows the swipe did nothing (`force`), press power.
+        let emptyDumps = 0;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const { xml } = await fetchUiHierarchy(this.udid);
+            if (xml) {
+                if (!AOD_WINDOW_HINTS.some((hint) => xml.includes(hint))) return;
+            } else if (!force) {
+                emptyDumps += 1;
+                if (emptyDumps < 2) continue;
+            }
+            this.sendKey(KeyEvent.KEYCODE_POWER);
+            force = false;
+            await delay(1200);
+        }
+    }
+
+    /**
+     * The keyguard's own reveal gesture: straight up from the bottom edge.
+     * A diagonal swipe that starts in the bottom-right corner is read as the
+     * camera shortcut on many builds, and a swipe that starts too high above
+     * the bottom edge is not taken as the unlock gesture at all — injected
+     * touches are indistinguishable from a real finger.
+     */
+    private swipeUp(startRatio = 0.97, endRatio = 0.35): Promise<void> {
+        const x = this.screenWidth * 0.5;
+        return this.drag(x, this.screenHeight * startRatio, x, this.screenHeight * endRatio);
+    }
+
+    /**
+     * Send the same gesture through `adb shell input swipe`, which is what the
+     * Screen-Remote app this dialog came from uses. SystemUI reads shell input
+     * even on builds that drop the injected-touch path, so it is the primary
+     * route; the control channel stays as the fallback when the endpoint is
+     * not reachable.
+     */
+    private async swipeUpViaAdb(
+        startRatio = 0.97,
+        endRatio = 0.35,
+        duration = 300,
+    ): Promise<boolean> {
+        const x = Math.round(this.screenWidth * 0.5);
+        const y1 = Math.round(this.screenHeight * startRatio);
+        const y2 = Math.round(this.screenHeight * endRatio);
+        try {
+            const res = await fetch('/api/devices/input-swipe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ udid: this.udid, x1: x, y1, x2: x, y2, duration }),
+            });
+            if (res.ok) return true;
+        } catch {
+            // Endpoint missing or the request failed: fall back below.
+        }
+        await this.swipeUp(startRatio, endRatio);
+        return false;
+    }
+
+    /**
+     * Swipe, then check what the lock screen is showing. Some builds need one
+     * swipe to show the clock and another to reveal the PIN/pattern, so retry
+     * with a few gesture variants instead of drawing on a guessed grid. Each
+     * retry reports the windows that are actually on screen, so a stuck run
+     * says why instead of sitting on "detecting".
+     */
+    private async revealUnlockUi(): Promise<UnlockTarget> {
+        await this.wakeAndSwipeUp();
+        let target = await this.detectUnlockTarget(6000);
+        const variants: Array<{ from: number; to: number; duration: number }> = [
+            { from: 0.985, to: 0.25, duration: 350 },
+            { from: 0.93, to: 0.32, duration: 250 },
+        ];
+        for (const [index, variant] of variants.entries()) {
+            if (target.kind !== 'none') break;
+            // The dump fingerprint used to be appended here, which put raw
+            // window names ("com.android.systemui | com.miui.aod | …") across
+            // the middle of the picture. It still goes into the failure text,
+            // where it is useful, but a status line the user reads while
+            // waiting only needs the attempt counter.
+            this.showStatus(`${t('unlock_detecting')} (${index + 2}/3)`);
+            if (index === variants.length - 1) {
+                // Last resort: same gesture over the control channel, in case
+                // the shell route is what the keyguard drops.
+                await this.swipeUp(variant.from, variant.to);
+            } else {
+                await this.swipeUpViaAdb(variant.from, variant.to, variant.duration);
+            }
+            await delay(600);
+            target = await this.detectUnlockTarget(10000);
+        }
+        if (target.kind === 'none') {
+            // Last resort before reporting failure: the panel may still be in
+            // always-on display even though the dumps looked normal — MIUI/HyperOS
+            // report mWakefulness=Awake in doze, which is why the wake call above
+            // believed the screen was lit and every swipe was dropped. One real
+            // power press leaves doze, so retry once with it instead of ending on
+            // a detection timeout.
+            this.showStatus(t('unlock_waking'));
+            await this.wakeFromAod(true);
+            await delay(700);
+            await this.swipeUpViaAdb();
+            await delay(900);
+            target = await this.detectUnlockTarget(15000);
+        }
+        if (target.kind === 'none') {
+            throw new Error(`${t('unlock_swipe_failed')} [${await this.describeScreen()}]`);
+        }
+        return target;
+    }
+
+    /** Short "which windows are on screen" tag, for status and error text. */
+    private async describeScreen(): Promise<string> {
+        const { xml, error } = await fetchUiHierarchy(this.udid);
+        if (!xml) return error ? `dump-error: ${error}`.slice(0, 60) : 'no-dump';
+        return dumpFingerprint(xml);
     }
 
     /**
@@ -485,7 +637,7 @@ export class UnlockDialog extends Modal {
      * dump first (the screen may have switched to a numeric PIN prompt after
      * failed pattern attempts); otherwise poll until either appears.
      */
-    private async detectUnlockTarget(): Promise<UnlockTarget> {
+    private async detectUnlockTarget(timeoutMs = 30000): Promise<UnlockTarget> {
         const useCache = getUsePatternCache(this.udid);
         const cached = useCache ? getPatternAreaCache(this.udid) : null;
         if (cached) {
@@ -511,6 +663,7 @@ export class UnlockDialog extends Modal {
         }
         this.showStatus(t('unlock_detecting'));
         return pollForUnlockTarget(this.udid, this.screenWidth, this.screenHeight, {
+            timeoutMs,
             onDetected: (detected, display) => {
                 const area: PatternArea = { ...detected };
                 if (display) {
@@ -676,14 +829,20 @@ export class UnlockDialog extends Modal {
                 this.showStatus(t('unlock_need_pattern'));
                 return;
             }
-            await this.wakeAndSwipeUp();
+            // Swipe the keyguard away and confirm the PIN/pattern UI is really
+            // on screen; throws instead of drawing onto a guessed grid when the
+            // gesture did not take.
+            const target = await this.revealUnlockUi();
 
             if (mode === 'pin') {
-                // Wake the lock UI, find the PIN field, tap it (so the text
-                // lands in the right place), then type.
-                await this.ensureAwake();
-                await delay(900);
-                const pinField = await this.detectPinField();
+                // Find the PIN field, tap it (so the text lands in the right
+                // place), then type. The reveal above already located it when
+                // the lock screen showed a numeric keypad.
+                await delay(600);
+                const pinField =
+                    target.kind === 'pin' && target.area
+                        ? { area: target.area, display: target.display }
+                        : await this.detectPinField();
                 await this.unlockWithPin(pin!, pinField);
                 // Persist or discard the PIN, per the "保存密码" toggle.
                 if (isSavePasswordEnabled(this.udid)) {
@@ -692,13 +851,9 @@ export class UnlockDialog extends Modal {
                     clearSavedPin(this.udid);
                 }
             } else {
-                // Detect what the lock screen is showing now. If the pattern
-                // grid is gone (e.g. too many failed attempts made Android ask
-                // for the numeric PIN), tell the user to switch to PIN mode —
-                // a saved PIN is never auto-injected from here.
-                const target = await this.detectUnlockTarget();
-                await this.ensureAwake();
-                await delay(400);
+                // If the pattern grid is gone (e.g. too many failed attempts
+                // made Android ask for the numeric PIN), tell the user to
+                // switch to PIN mode — a saved PIN is never auto-injected here.
                 if (target.kind === 'pin') {
                     this.showStatus(t('unlock_pin_required'));
                     setTimeout(() => this.removeMiniStatus(), 6000);

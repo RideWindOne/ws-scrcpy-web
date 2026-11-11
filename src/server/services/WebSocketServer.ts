@@ -27,6 +27,13 @@ import type { Service } from './Service';
 export const liveSockets = new SocketRegistry();
 
 /**
+ * Interval of the keep-alive ping. Long enough that it costs nothing on an idle
+ * stream, short enough to sit inside the idle timeouts of the proxies that
+ * usually front a NAS (nginx / UGOS defaults start at 60 s).
+ */
+const WS_KEEPALIVE_MS = 20000;
+
+/**
  * Who a WS handshake acts as, and which session (if any) the socket belongs to.
  *
  * `token` is the session the socket is registered under in `liveSockets`, so it
@@ -153,6 +160,13 @@ export class WebSocketServer implements Service {
             },
         });
         wss.on('connection', async (ws: WS, request) => {
+            // Keep-alive bookkeeping: a socket that stops answering the ping is
+            // reaped by the interval below instead of pinning a session forever.
+            const tracked = ws as WS & { isAlive?: boolean };
+            tracked.isAlive = true;
+            ws.on('pong', () => {
+                tracked.isAlive = true;
+            });
             if (!request.url) {
                 ws.close(4001, closeReason(`[${TAG}] Invalid url`));
                 return;
@@ -194,7 +208,34 @@ export class WebSocketServer implements Service {
             }
             return;
         });
+        // Keep-alive. A reverse proxy in front of the NAS (or the NAS gateway
+        // itself) silently drops a WebSocket that has been quiet for its idle
+        // timeout, and the browser sees that as close code 1006 with no close
+        // frame — indistinguishable from a crash, and misreported as
+        // "stream failed" on a perfectly healthy device. A ping frame every
+        // WS_KEEPALIVE_MS keeps those idle timers from ever firing. The browser
+        // answers pongs by itself, so no client-side protocol change is needed.
+        // A socket that has not answered the previous ping is terminated rather
+        // than left holding its scrcpy session.
+        const heartbeatTimer = setInterval(() => {
+            for (const client of wss.clients) {
+                const socket = client as WS & { isAlive?: boolean };
+                if (socket.isAlive === false) {
+                    socket.terminate();
+                    continue;
+                }
+                socket.isAlive = false;
+                try {
+                    socket.ping();
+                } catch {
+                    // A socket already closing throws here; the next tick reaps it.
+                }
+            }
+        }, WS_KEEPALIVE_MS);
+        // Never keep the process alive just for the heartbeat.
+        (heartbeatTimer as unknown as { unref?: () => void }).unref?.();
         wss.on('close', () => {
+            clearInterval(heartbeatTimer);
             log.info('stopped');
         });
         // Load-bearing, not tidiness. Given an existing `server`, ws forwards that

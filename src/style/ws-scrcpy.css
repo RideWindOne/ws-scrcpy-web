@@ -133,6 +133,11 @@
     grid-area: 1 / 1;
     align-self: center;
     justify-self: center;
+    /* Percentages resolve against the picture height, so the offset scales
+       with the stream: the keyguard's clock and date sit in the middle, and
+       this notice rides above them instead of on top of the time. */
+    position: relative;
+    top: -15%;
     z-index: 2;
     padding: 0.6rem 1rem;
     border: 1px solid var(--warning-color);
@@ -183,9 +188,21 @@
  * pointer, so taps on the navigation bar under it still reach the device.
  * StreamClientScrcpy puts the prompt before the notice in the DOM so this
  * sibling rule can match. */
-.stream-clipboard-prompt:not([hidden]) ~ .stream-locked-notice {
+.stream-clipboard-prompt:not([hidden]) ~ .stream-locked-notice:not(.unlock-mini-status) {
     align-self: end;
     margin-bottom: 0.75rem;
+    /* Drop the upward nudge: at the bottom edge it would push this notice
+       back towards the middle, where the unlock chip now sits. */
+    top: 0;
+}
+
+/* The unlock dialog reuses .stream-locked-notice for its in-video status
+ * chip (UnlockDialog#ensureMiniStatus). It keeps its own place below the
+ * clock, so the locked notice above never collides with it — the two used
+ * to sit on the same row, with the wake-up text unreadable underneath the
+ * lock message. */
+.stream-locked-notice.unlock-mini-status {
+    top: 20%;
 }
 
 .stream-clipboard-prompt > button {

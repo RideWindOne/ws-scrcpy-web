@@ -168,11 +168,20 @@ export interface UiHierarchyResult {
     error: string | null;
 }
 
+/** How long a single dump may take before it is abandoned. A hung dump used to
+ * stall the whole poll loop: the loop only checks its own deadline between
+ * rounds, so one stuck request froze detection forever with no error shown. */
+const DUMP_TIMEOUT_MS = 8000;
+
 /** Fetch one uiautomator dump. Errors (including non-XML bodies the server
  * rejects) come back in `error` so the UI can show why detection failed. */
 export async function fetchUiHierarchy(udid: string): Promise<UiHierarchyResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DUMP_TIMEOUT_MS);
     try {
-        const res = await fetch(`/api/devices/ui-hierarchy?udid=${encodeURIComponent(udid)}`);
+        const res = await fetch(`/api/devices/ui-hierarchy?udid=${encodeURIComponent(udid)}`, {
+            signal: controller.signal,
+        });
         if (res.ok) {
             return { xml: await res.text(), error: null };
         }
@@ -185,7 +194,10 @@ export async function fetchUiHierarchy(udid: string): Promise<UiHierarchyResult>
         }
         return { xml: null, error: detail };
     } catch (e) {
-        return { xml: null, error: (e as Error).message };
+        const error = (e as Error).name === 'AbortError' ? `dump timed out after ${DUMP_TIMEOUT_MS}ms` : (e as Error).message;
+        return { xml: null, error };
+    } finally {
+        clearTimeout(timer);
     }
 }
 

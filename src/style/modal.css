@@ -598,15 +598,63 @@ dialog.connect-modal .modal-frame {
 dialog.connect-modal .connect-modal-error {
     position: absolute;
     inset: 0;
-    display: grid;
-    place-items: center;
-    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    /* The icon column sits on the right of this box, so the last 56px of the
+       overlay are drawn underneath opaque buttons and clip the tail of a long
+       close-code message. Reserve that strip instead of letting the text run
+       into it, and let any remaining long token wrap. */
+    padding: 24px 56px 24px 24px;
     box-sizing: border-box;
     background: rgba(0, 0, 0, 0.88);
     color: #f06c75;
     font-size: 14px;
+    line-height: 1.45;
     text-align: center;
+    overflow-wrap: anywhere;
     z-index: 2;
+}
+
+dialog.connect-modal .connect-modal-retry {
+    padding: 8px 20px;
+    border: 1px solid #f06c75;
+    border-radius: 6px;
+    background: rgba(240, 108, 117, 0.14);
+    color: #f06c75;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 96px;
+    min-height: 44px;
+}
+
+dialog.connect-modal .connect-modal-retry:active {
+    background: rgba(240, 108, 117, 0.3);
+}
+
+/* Quiet status line shown while the dialog is reconnecting by itself: it must
+ * not look like the failure report it replaces, and it must not swallow
+ * touches meant for the picture. */
+dialog.connect-modal .connect-modal-reconnect {
+    position: absolute;
+    left: 50%;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    max-width: calc(100% - 96px);
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.78);
+    color: #e6e6e6;
+    font-size: 13px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    z-index: 3;
 }
 
 dialog.connect-modal .control-buttons-list {
@@ -625,6 +673,27 @@ dialog.connect-modal.stream-error .video,
 dialog.connect-modal.stream-error .control-buttons-list {
     height: auto !important;
     max-height: 100%;
+}
+
+/* A failure after the stream was already running leaves the canvases at their
+ * last inline pixel size. `.video` is content-sized, so it stays wider than the
+ * forced frame and pushes its toolbox sibling past the frame's right edge: the
+ * column ends up off-screen (the body clips it) and the close button cannot be
+ * tapped until the 4 s timer fires. Give the picture cell the leftover width
+ * instead and drop the frozen canvases; the black backdrop and the error
+ * overlay keep the modal looking the same. */
+dialog.connect-modal.stream-error .device-view {
+    width: 100%;
+}
+
+dialog.connect-modal.stream-error .video {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+dialog.connect-modal.stream-error .video-layer,
+dialog.connect-modal.stream-error .touch-layer {
+    display: none;
 }
 
 /* Edge strip settings: side segments plus two sliders. */

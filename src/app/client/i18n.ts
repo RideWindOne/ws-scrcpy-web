@@ -574,6 +574,14 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '设备已锁定——解锁后即可查看屏幕',
         en: 'device is locked — unlock it to see the screen',
     },
+    'stream_reconnecting': {
+        zh: '连接中断，正在重连…',
+        en: 'connection lost, reconnecting…',
+    },
+    'stream_retry': {
+        zh: '重试',
+        en: 'Retry',
+    },
     'shell_resize_warning': {
         zh: '会话开始后调整浏览器窗口大小可能导致显示异常',
         en: 'resizing the browser window after starting a session may cause display issues',
@@ -837,6 +845,14 @@ const translations: Record<string, Record<Language, string>> = {
     'unlock_waking': {
         zh: '正在唤醒屏幕…',
         en: 'Waking screen…',
+    },
+    'unlock_wake_failed': {
+        zh: '屏幕未唤醒，无法继续',
+        en: 'Screen did not wake up, cannot continue',
+    },
+    'unlock_swipe_failed': {
+        zh: '自动上滑未生效，请手动上滑一次后重试',
+        en: 'Auto swipe did not take effect; swipe up by hand once and retry',
     },
     'unlock_detecting': {
         zh: '正在检测密码框…',
