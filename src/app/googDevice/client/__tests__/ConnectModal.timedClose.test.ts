@@ -59,7 +59,7 @@ describe('ConnectModal stream error closes the modal once', () => {
     it('shows the error and closes once after 4 s when the user does nothing', () => {
         const modal = openModal();
         stream.options?.onError?.(new Error('device went away'));
-        expect(modal['bodyEl'].textContent).toBe('stream failed: device went away');
+        expect(modal['bodyEl'].textContent).toContain('stream failed: device went away');
 
         vi.advanceTimersByTime(3999);
         expect(HTMLDialogElement.prototype.close).not.toHaveBeenCalled();

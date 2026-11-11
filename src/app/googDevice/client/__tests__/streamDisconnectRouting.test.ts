@@ -261,7 +261,7 @@ describe('ConnectModal (smoke row 8.27)', () => {
 
         socket.fireClose(4005, 'scrcpy-server exited (code 1)');
 
-        expect(errorText(dialog)).toBe('stream failed: scrcpy-server exited (code 1)');
+        expect(errorText(dialog)).toContain('stream failed: scrcpy-server exited (code 1)');
         expect(dialog.hasAttribute('open')).toBe(true);
         vi.advanceTimersByTime(3999);
         expect(dialog.hasAttribute('open')).toBe(true);

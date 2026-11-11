@@ -50,7 +50,7 @@ describe('ConnectModal when the stream fails to start synchronously', () => {
         expect(() => open()).not.toThrow();
 
         const errorEl = document.querySelector('dialog.connect-modal .connect-modal-error');
-        expect(errorEl?.textContent).toBe('stream failed: device refused');
+        expect(errorEl?.textContent).toContain('stream failed: device refused');
     });
 
     it('closes the modal once, after 4 seconds', () => {

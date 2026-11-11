@@ -586,6 +586,10 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '关闭',
         en: 'Close',
     },
+    'stream_cancel': {
+        zh: '取消',
+        en: 'Cancel',
+    },
     'shell_resize_warning': {
         zh: '会话开始后调整浏览器窗口大小可能导致显示异常',
         en: 'resizing the browser window after starting a session may cause display issues',

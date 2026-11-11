@@ -43,7 +43,6 @@ export class ConnectModal extends Modal {
     ) {
         super({ title: deviceLabel });
         this.dialog.classList.add('connect-modal');
-        this.addCloseButton();
         this.params = params;
         this.fitToScreen = fitToScreen;
         this.videoSettings = videoSettings;
@@ -52,24 +51,17 @@ export class ConnectModal extends Modal {
     }
 
     /**
-     * A close button pinned to the dialog itself.
+     * Hide the window before tearing the stream down.
      *
-     * On phones the title bar is hidden to give the picture the whole frame, so
-     * the toolbox was the only way out — and a reconnect calls `stop()`, which
-     * takes the toolbox away. When the reconnect then failed the window was a
-     * black rectangle with no toolbar, escape and backdrop both blocked: nothing
-     * to press. This button lives outside the stream body, so it survives every
-     * stop/open cycle and every failure.
+     * `onBeforeClose` stops the stream first (it has to: the container refuses a
+     * second stream until the first is released), and that stop can take a
+     * moment when the pipe is already stalled — long enough to see the toolbox
+     * vanish and a black rectangle sit there before the dialog disappears. Going
+     * invisible up front makes the teardown cost invisible.
      */
-    private addCloseButton(): void {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'connect-modal-close';
-        button.textContent = '×';
-        button.title = t('stream_close');
-        button.setAttribute('aria-label', t('stream_close'));
-        button.addEventListener('click', () => this.close());
-        this.dialog.appendChild(button);
+    public override close(result?: unknown): void {
+        this.dialog.classList.add('is-closing');
+        super.close(result);
     }
 
     private openStream(): void {
@@ -119,7 +111,7 @@ export class ConnectModal extends Modal {
         console.error('[ConnectModal]', err);
         if (isDroppedConnection(err) && !this.retriedOnce) {
             this.retriedOnce = true;
-            this.showStatus(t('stream_reconnecting'));
+            this.showStatus(t('stream_reconnecting'), true);
             this.reconnectTimer = window.setTimeout(() => this.restart(), RECONNECT_DELAY_MS);
             return;
         }
@@ -141,11 +133,17 @@ export class ConnectModal extends Modal {
         this.handle?.stop();
         this.handle = undefined;
         this.reconnecting = false;
-        this.showStatus(t('stream_reconnecting'));
+        this.showStatus(t('stream_reconnecting'), true);
         this.openStream();
     }
 
-    private showStatus(text: string): void {
+    /**
+     * A status chip over the picture. `cancellable` adds the exit that the
+     * toolbox used to be: the restart below calls `stop()`, which takes the
+     * toolbox (and with it every close control) away until a new stream has
+     * connected — so without this a waiting reconnect can only be waited out.
+     */
+    private showStatus(text: string, cancellable = false): void {
         let el = this.statusEl;
         if (!el) {
             el = document.createElement('div');
@@ -154,6 +152,14 @@ export class ConnectModal extends Modal {
             this.statusEl = el;
         }
         el.textContent = text;
+        if (cancellable) {
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'connect-modal-cancel';
+            cancel.textContent = t('stream_cancel');
+            cancel.addEventListener('click', () => this.close());
+            el.appendChild(cancel);
+        }
     }
 
     private clearStatus(): void {
@@ -176,6 +182,14 @@ export class ConnectModal extends Modal {
             this.bodyEl.appendChild(el);
         }
         el.textContent = `stream failed: ${err.message}`;
+        const closeButton = (): HTMLButtonElement => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'connect-modal-dismiss';
+            button.textContent = t('stream_close');
+            button.addEventListener('click', () => this.close());
+            return button;
+        };
         if (retryable) {
             // The toolbar crops the overlay's text (it is drawn under the icon
             // column), and a tap on it is the obvious next move instead of
@@ -192,6 +206,9 @@ export class ConnectModal extends Modal {
             });
             el.appendChild(button);
         }
+        // Always offered: on phones the title bar is hidden and the toolbox went
+        // away with the stream, so this is the only way out of a dead window.
+        el.appendChild(closeButton());
         this.dialog.classList.add('stream-error');
         // Close after 4s (long enough to read, short enough not to feel stuck)
         // only when there is nothing to retry; a retryable failure waits for the

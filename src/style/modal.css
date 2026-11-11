@@ -543,43 +543,23 @@ dialog.connect-modal .modal-frame {
  * .device-view row to that height, and lets the frame shrink around it — no bars,
  * nothing cropped. max-height below keeps the frame inside the viewport. */
 
-/* Phones: drop the title bar entirely so the stream takes the whole frame. The
- * dedicated close button below replaces the header's × there — the toolbox is
- * not a reliable exit, since a reconnect stop() removes it. */
+/* Phones: drop the title bar entirely so the stream takes the whole frame. No
+ * substitute close control is needed — the toolbox has one, and ConnectModal
+ * already blocks backdrop and Escape dismissal to protect the stream. */
 @media (max-width: 640px), (max-height: 560px) {
     dialog.connect-modal .modal-header {
         display: none;
     }
 }
 
-/* Lives on the dialog, not in the stream body, so a reconnect (which tears the
- * toolbar down) cannot take the only exit with it. Top-left keeps it clear of the
- * icon column on the right. */
-dialog.connect-modal .connect-modal-close {
-    position: absolute;
-    top: max(8px, env(safe-area-inset-top, 0px));
-    left: max(8px, env(safe-area-inset-left, 0px));
-    z-index: 5;
-    width: 36px;
-    height: 36px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.62);
-    color: #fff;
-    font-size: 20px;
-    line-height: 1;
-    cursor: pointer;
-}
-
-/* Only where the header is hidden; otherwise the header's own × is the exit. */
-@media (max-width: 640px), (max-height: 560px) {
-    dialog.connect-modal .connect-modal-close {
-        display: flex;
-    }
+/* Closing switches the window off before the stream is torn down: the stop can
+ * take a moment on a stalled pipe, and until then the toolbox is already gone —
+ * which used to show as a black rectangle waiting to disappear. */
+dialog.connect-modal.is-closing {
+    opacity: 0;
+    visibility: hidden;
+    transition: none;
+    pointer-events: none;
 }
 
 /* biome-ignore lint/style/noDescendingSpecificity: dialog.connect-modal and dialog.modal.shell-modal are mutually exclusive — no element matches both */
@@ -665,6 +645,25 @@ dialog.connect-modal .connect-modal-retry:active {
     background: rgba(240, 108, 117, 0.3);
 }
 
+/* The exit next to "重试". Same footprint so the pair reads as a group, painted
+ * quieter because closing is the fallback, not the recommendation. */
+dialog.connect-modal .connect-modal-dismiss {
+    padding: 8px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #d7d7d7;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 96px;
+    min-height: 44px;
+}
+
+dialog.connect-modal .connect-modal-dismiss:active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
 /* Quiet status line shown while the dialog is reconnecting by itself: it must
  * not look like the failure report it replaces, and it must not swallow
  * touches meant for the picture. */
@@ -673,6 +672,9 @@ dialog.connect-modal .connect-modal-reconnect {
     left: 50%;
     bottom: max(12px, env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
     max-width: calc(100% - 96px);
     padding: 6px 14px;
     border-radius: 999px;
@@ -685,6 +687,26 @@ dialog.connect-modal .connect-modal-reconnect {
     text-overflow: ellipsis;
     pointer-events: none;
     z-index: 3;
+}
+
+/* Only the button takes touches; the pill itself stays transparent to them so
+ * a swipe along the bottom of the picture still reaches the device. */
+dialog.connect-modal .connect-modal-cancel {
+    flex: none;
+    padding: 4px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #f2f2f2;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.2;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+dialog.connect-modal .connect-modal-cancel:active {
+    background: rgba(255, 255, 255, 0.28);
 }
 
 dialog.connect-modal .control-buttons-list {

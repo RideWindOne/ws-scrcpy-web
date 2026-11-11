@@ -81,7 +81,7 @@ describe('ConnectModal when the pipe drops (close code 1006)', () => {
         started[0]!.onErrorReceived!(drop());
 
         // A quiet status chip, no red overlay yet.
-        expect(statusEl()?.textContent).toBe('连接中断，正在重连…');
+        expect(statusEl()?.textContent).toContain('连接中断，正在重连…');
         expect(errorEl()).toBeNull();
         expect(closeSpy).not.toHaveBeenCalled();
 
@@ -115,29 +115,34 @@ describe('ConnectModal when the pipe drops (close code 1006)', () => {
         await open();
         started[0]!.onErrorReceived!(new Error('session failed: device went away'));
 
-        expect(errorEl()?.textContent).toBe('stream failed: session failed: device went away');
+        expect(errorEl()?.textContent).toContain('stream failed: session failed: device went away');
         expect(statusEl()).toBeNull();
         vi.advanceTimersByTime(4000);
         expect(closeSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('always has a close button that survives the reconnect teardown', async () => {
-        // On phones the title bar is hidden, so the toolbox was the only exit —
-        // and a reconnect stops the stream, taking the toolbox with it. The
-        // button must live on the dialog, not inside the stream body.
+    it('offers an exit while waiting, and both retry and close after a failure', async () => {
+        // A reconnect stops the stream, taking the toolbox (and with it the only
+        // close control on phones) away. The waiting pill therefore carries a
+        // cancel button, and the failure overlay carries close next to retry.
         await open();
-        const button = modal()?.querySelector<HTMLButtonElement>('.connect-modal-close');
-        expect(button).not.toBeNull();
-        expect(button?.textContent).toBe('×');
-
         started[0]!.onErrorReceived!(drop());
-        vi.advanceTimersByTime(3000);
-        // Still there after the stop/open cycle, and after a second failure.
-        expect(modal()?.querySelector('.connect-modal-close')).not.toBeNull();
-        started[1]!.onErrorReceived!(drop());
-        expect(modal()?.querySelector('.connect-modal-close')).not.toBeNull();
+        const cancel = statusEl()?.querySelector<HTMLButtonElement>('.connect-modal-cancel');
+        expect(cancel?.textContent).toBe('取消');
 
-        button?.click();
+        vi.advanceTimersByTime(3000);
+        // Still reachable after the stop/open cycle, and after a second failure.
+        expect(statusEl()?.querySelector('.connect-modal-cancel')).not.toBeNull();
+        started[1]!.onErrorReceived!(drop());
+
+        const error = errorEl();
+        expect(error?.querySelector<HTMLButtonElement>('.connect-modal-dismiss')?.textContent).toBe('关闭');
+        expect(error?.querySelector<HTMLButtonElement>('.connect-modal-retry')?.textContent).toBe('重试');
+
+        // Closing hides the window immediately: the teardown may lag on a
+        // stalled pipe, and that gap used to show as a black rectangle.
+        error?.querySelector<HTMLButtonElement>('.connect-modal-dismiss')?.click();
         expect(closeSpy).toHaveBeenCalled();
+        expect(modal()?.classList.contains('is-closing')).toBe(true);
     });
 });
