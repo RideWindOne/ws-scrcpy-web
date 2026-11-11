@@ -420,6 +420,23 @@ export class UnlockDialog extends Modal {
     // fall asleep again. A tap both wakes the panel and leaves nothing to wait
     // for, so the flow goes straight from tap to swipe.
 
+    /**
+     * Send the wake request and carry on without waiting for it.
+     *
+     * Waiting for the answer was the slow part: the server runs `input keyevent
+     * 224`, sleeps 500 ms, re-reads `dumpsys power` and only then replies — and
+     * the old code retried that up to three times. Nothing in the flow depends
+     * on the reply, so the request goes out and the next step starts immediately;
+     * the tap that follows covers the device falling asleep in the meantime.
+     */
+    private wakeScreen(): void {
+        void fetch('/api/devices/sleep-wake', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ udid: this.udid, action: 'wake' }),
+        }).catch(() => undefined);
+    }
+
     private sendKey(keycode: number): void {
         this.client.sendMessage(new KeyCodeControlMessage(KeyEvent.ACTION_DOWN, keycode, 0, 0));
         this.client.sendMessage(new KeyCodeControlMessage(KeyEvent.ACTION_UP, keycode, 0, 0));
@@ -488,14 +505,13 @@ export class UnlockDialog extends Modal {
     }
 
     /**
-     * Tap, then swipe diagonally up.
-     *
-     * No wake request and no waiting for one: the touch itself brings a sleeping
-     * panel back, and every second spent on a `keyevent` round trip was a second
-     * the device could spend falling asleep.
+     * Wake, tap, then swipe diagonally up — in that order, with no waiting in
+     * between. The wake request is not awaited: the touch right after it brings
+     * a sleeping panel back anyway, so the round trip's answer is irrelevant.
      */
     private async wakeAndSwipeUp(): Promise<void> {
         this.showStatus(t('unlock_waking'));
+        this.wakeScreen();
         await this.tapScreen();
         await this.drag(
             this.screenWidth * 0.85,
