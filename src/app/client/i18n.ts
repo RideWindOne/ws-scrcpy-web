@@ -166,6 +166,34 @@ const translations: Record<string, Record<Language, string>> = {
         zh: '通知',
         en: 'Notifications',
     },
+    'adb_port': {
+        zh: 'adb 端口',
+        en: 'adb port',
+    },
+    'adb_port_hint': {
+        zh: '端口需为 1024–65535 之间的整数；打开后设备会在该端口以 TCP 模式可连',
+        en: 'A whole number between 1024 and 65535; the device becomes reachable on that TCP port',
+    },
+    'adb_port_open': {
+        zh: '打开端口',
+        en: 'Open port',
+    },
+    'adb_port_ok': {
+        zh: '已打开端口',
+        en: 'Port opened',
+    },
+    'adb_port_failed': {
+        zh: '打开失败',
+        en: 'Failed to open port',
+    },
+    'adb_port_working': {
+        zh: '正在执行 adb tcpip…',
+        en: 'Running adb tcpip…',
+    },
+    'adb_port_invalid': {
+        zh: '端口需为 1024–65535 之间的整数',
+        en: 'Port must be a whole number between 1024 and 65535',
+    },
     'notify_select_apps': {
         zh: '选择应用',
         en: 'Select apps',

@@ -1825,3 +1825,57 @@ dialog.notification-modal .modal-body {
         flex-wrap: wrap;
     }
 }
+
+/* ── adb 端口行 ──
+ * 端口输入框与「打开端口」按钮同排。两者必须在同一个网格单元里，并固定在
+ * controls 列：单独放一个按钮时，它会作为网格的独立子元素落到 35% 宽的
+ * labels 列上，文字折成两行，看着像一个多余的复选框，且与上面的输入框
+ * 不在同一列。按钮用描边+淡底，和这一列的输入框同一套观感。
+ */
+dialog.modal .modal-advanced .adb-port-row {
+    grid-column: controls;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+dialog.modal .modal-advanced .adb-port-row > input {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+}
+
+dialog.modal .modal-advanced .adb-port-row > button {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0.42rem 0.75rem;
+    border: 1px solid rgba(128, 160, 255, 0.45);
+    border-radius: 6px;
+    background: rgba(128, 160, 255, 0.1);
+    color: var(--accent-color);
+    font-size: 13px;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+dialog.modal .modal-advanced .adb-port-row > button:hover:not(:disabled) {
+    background: rgba(128, 160, 255, 0.2);
+    border-color: var(--accent-color);
+}
+
+dialog.modal .modal-advanced .adb-port-row > button:active:not(:disabled) {
+    background: rgba(128, 160, 255, 0.3);
+}
+
+dialog.modal .modal-advanced .adb-port-row > button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+dialog.modal .modal-advanced .adb-port-status {
+    grid-column: controls;
+    margin: 0;
+}

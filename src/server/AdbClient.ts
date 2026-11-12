@@ -329,6 +329,25 @@ export class AdbClient {
     }
 
     /**
+     * Put the device's adbd into TCP mode on `port` (`adb tcpip <port>`).
+     *
+     * This is the step after wireless-debugging pairing that makes the phone
+     * reachable at `ip:port` on the LAN. adbd restarts to apply it and the
+     * device's CURRENT transport drops, so a success here usually makes the
+     * serial it was called with disappear from `devices()` — which is why the
+     * caller reports adb's stdout ("restarting in TCP mode port: N") instead of
+     * trying to reuse the serial afterwards.
+     */
+    async tcpip(serial: string, port: number): Promise<string> {
+        // `-s` is validated by `exec` (assertSerial), so a serial cannot turn
+        // into an adb option here.
+        const output = await this.exec(['-s', serial, 'tcpip', String(port)], {
+            timeoutMs: DEFAULT_TIMEOUT_MS.connect,
+        });
+        return output.trim();
+    }
+
+    /**
      * Pair with a device. NEVER lets the pairing code escape.
      *
      * AdbExecError builds its message from `args.join(' ')`, so letting one

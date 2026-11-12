@@ -896,6 +896,104 @@ export class ConfigureScrcpy extends Modal {
             }
         });
 
+        // ── adb 端口 ──
+        // adbd only switches to TCP mode while the device is reachable over its
+        // own transport, so this acts on the already-connected device: it turns
+        // adbd into `ip:port` reachable. Field and button share one row pinned to
+        // the controls column — as a bare grid child the button lands in the 35%
+        // labels column, wraps onto two lines and reads as a stray checkbox.
+        const adbPortSeparator = document.createElement('div');
+        adbPortSeparator.classList.add('modal-advanced-separator');
+        advancedSection.appendChild(adbPortSeparator);
+
+        const adbPortLabel = document.createElement('label');
+        adbPortLabel.classList.add('label');
+        adbPortLabel.innerText = `${t('adb_port')}:`;
+        adbPortLabel.title = t('adb_port_hint');
+        advancedSection.appendChild(adbPortLabel);
+
+        const adbPortRow = document.createElement('div');
+        adbPortRow.classList.add('adb-port-row');
+
+        const adbPortInput = document.createElement('input');
+        adbPortInput.classList.add('input');
+        adbPortInput.id = adbPortLabel.htmlFor = `adb_port_${this.escapedUdid}`;
+        adbPortInput.setAttribute('type', 'number');
+        adbPortInput.setAttribute('min', '1024');
+        adbPortInput.setAttribute('max', '65535');
+        adbPortInput.setAttribute('step', '1');
+        // Remembered across dialogs; 5555 is adb's own default and the value
+        // every wireless-debugging guide quotes.
+        adbPortInput.value = localStorage.getItem('adb_tcpip_port') || '5555';
+        adbPortInput.addEventListener('change', () => {
+            const parsed = Number(adbPortInput.value);
+            if (Number.isInteger(parsed) && parsed >= 1024 && parsed <= 65535) {
+                localStorage.setItem('adb_tcpip_port', String(parsed));
+            }
+        });
+
+        const adbPortButton = document.createElement('button');
+        adbPortButton.type = 'button';
+        adbPortButton.classList.add('button');
+        adbPortButton.innerText = t('adb_port_open');
+
+        adbPortRow.appendChild(adbPortInput);
+        adbPortRow.appendChild(adbPortButton);
+        advancedSection.appendChild(adbPortRow);
+
+        const adbPortStatus = document.createElement('div');
+        adbPortStatus.classList.add('adb-port-status');
+        adbPortStatus.style.fontSize = '12px';
+        adbPortStatus.style.lineHeight = '1.4';
+        adbPortStatus.style.whiteSpace = 'pre-wrap';
+        advancedSection.appendChild(adbPortStatus);
+
+        const showAdbPortStatus = (text: string, isError: boolean) => {
+            adbPortStatus.innerText = text;
+            adbPortStatus.style.color = isError ? '#ff6b6b' : '#4caf50';
+        };
+
+        adbPortButton.addEventListener('click', () => {
+            const port = Number(adbPortInput.value);
+            if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+                showAdbPortStatus(t('adb_port_invalid'), true);
+                return;
+            }
+            adbPortButton.disabled = true;
+            showAdbPortStatus(t('adb_port_working'), false);
+            void (async () => {
+                try {
+                    const response = await fetch('/api/devices/tcpip', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ udid: this.udid, port }),
+                    });
+                    const data = (await response.json().catch(() => ({}))) as {
+                        ok?: boolean;
+                        output?: string;
+                        error?: string;
+                        kind?: string;
+                    };
+                    if (!response.ok) {
+                        // The server sends a failure KIND, not a sentence: the
+                        // reason belongs in the UI's own language.
+                        const reason = data.kind ? ` (${data.kind})` : '';
+                        showAdbPortStatus(`${t('adb_port_failed')}${reason}`, true);
+                        return;
+                    }
+                    const output = (data.output || '').trim();
+                    showAdbPortStatus(
+                        `${t('adb_port_ok')} ${port}${output ? `\n${output}` : ''}`,
+                        false,
+                    );
+                } catch (e) {
+                    showAdbPortStatus(`${t('adb_port_failed')}: ${(e as Error).message}`, true);
+                } finally {
+                    adbPortButton.disabled = false;
+                }
+            })();
+        });
+
         // Load behavior settings from localStorage
         const savedBehavior = JSON.parse(localStorage.getItem(`behavior_${this.udid}`) || '{}');
         if (this.turnScreenOffCheckbox) {

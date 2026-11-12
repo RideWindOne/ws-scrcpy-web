@@ -4,6 +4,7 @@ import { VelopackApp } from 'velopack';
 import { SCAN_WS_PATH } from '../common/ScanMessage';
 import { AdbClient } from './AdbClient';
 import { AdbDaemonManager } from './AdbDaemonManager';
+import { AdbTcpipApi } from './api/AdbTcpipApi';
 import { AuthApi } from './api/AuthApi';
 import { CapabilitiesApi } from './api/CapabilitiesApi';
 import { ConfigApi } from './api/ConfigApi';
@@ -151,6 +152,13 @@ if (__ssArgs) {
     // route 404s with nothing in the log to explain it.
     const pairingApi = new PairingApi();
     HttpServer.addApiHandler(pairingApi);
+
+    // Same ordering constraint as the pairing routes above: `/api/devices/tcpip`
+    // lives under `/api/devices`, which DeviceDiscoveryApi answers with 404
+    // unless its own routes matched first. Registered after it, the route would
+    // vanish silently.
+    const adbTcpipApi = new AdbTcpipApi();
+    HttpServer.addApiHandler(adbTcpipApi);
 
     const discoveryApi = new DeviceDiscoveryApi();
     HttpServer.addApiHandler(discoveryApi);
